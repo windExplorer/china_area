@@ -42,6 +42,7 @@ module.exports =  {
         return new Promise((resolve, reject) => {
             request.get({
                 url: u, 
+                maxRedirects: 1,
                 headers: {
                     'user-agent': userAgents[this.rand_num(0, userAgents.length - 1)]
                 }
@@ -65,6 +66,7 @@ module.exports =  {
         return new Promise((resolve, reject) => {
             request.get({
                 url: u,
+                maxRedirects: 1,
                 headers: {
                     'user-agent': userAgents[this.rand_num(0, userAgents.length - 1)]
                 },

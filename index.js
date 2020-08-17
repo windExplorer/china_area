@@ -1,5 +1,7 @@
 const cheerio = require('cheerio')
 const mysql = require('mysql')
+const EventEmitter = require('events')
+const life = new EventEmitter()
 // const fs = require('fs')
 const com = require('./com')
 const conf = require('./config')
