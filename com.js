@@ -152,11 +152,11 @@ module.exports =  {
                 return null
             }
             //=> '<!doctype html> ...'
-        } catch (error) {
+        } catch (err) {
             req.cancel()
             //console.log(error)
             //console.log(error.response.body)
-            this.logFile(this.elog(`Error: ${error.response.body} => ${u}\r\n`))
+            this.logFile(this.elog(`Error: ${err.statusCode} ${err.statusMessage} => ${u}\r\n`))
             return null
             //=> 'Internal server error ...'
         }
