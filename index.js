@@ -112,21 +112,36 @@ function grab(pid, link, level, link_str) {
             let sec = 0
             for(let i = 0; i <= re_try; i ++) {
                 let tmp_d = await com.req_iconv(link)
-                , tmp_$ = cheerio.load(tmp_d)
-                , tmp_res = tmp_$(`.${tag}`)
-                if(tmp_res.length == 0 && i < re_try) {
-                    sec += 10
-                    console.log(com.elog(`###### 没有数据，${sec}秒后进行第${i+1}次重试`))
-                    db.end()
-                    await sleep(sec*1000)
-                    db = mysql.createConnection(conf.db)
-                    com.db = db
-                } else {
-                    d = tmp_d
-                    $ = tmp_$
-                    res = tmp_res
-                    break
+                if((tmp_d+'').length == 0) {
+                    if( i < re_try) {
+                        sec += 10
+                        console.log(com.elog(`###### 没有数据，${sec}秒后进行第${i+1}次重试`))
+                        db.end()
+                        await sleep(sec*1000)
+                        db = mysql.createConnection(conf.db)
+                        com.db = db
+                        continue
+                    }
                 }
+                let tmp_$ = cheerio.load(tmp_d)
+                , tmp_res = tmp_$(`.${tag}`)
+                
+                if(tmp_res.length == 0) {
+                    tag = 'towntr'
+                    level = 4
+                    lv = 4
+                    tmp_res = tmp_$(`.${tag}`)
+                    if(tmp_res.length == 0) {
+                        tag = 'villagetr'
+                        level = 5
+                        lv = 5
+                        tmp_res = tmp_$(`.${tag}`)
+                    }
+                }
+                d = tmp_d
+                $ = tmp_$
+                res = tmp_res
+                break
             }
             if(res.length == 0) {
                 com.logFile(com.elog(`重试结束，但仍然失败: ${link}  => no result\r\n`))
