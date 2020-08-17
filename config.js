@@ -13,5 +13,6 @@ module.exports = {
         port: '',
         tsl: '',
         domain: '',
-    }
+    },
+    re_try: 10, // 重试次数
 }

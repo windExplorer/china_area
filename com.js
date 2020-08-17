@@ -46,10 +46,10 @@ module.exports =  {
                     'user-agent': userAgents[this.rand_num(0, userAgents.length - 1)]
                 }
             }, (err, res, body) => {
-                if(res && res.body && res.body.length !== 0) {
-                    resolve(res.body)
+                if(!err && res.statusCode == 200) {
+                    resolve(body)
                 } else {
-                   // 写错误文件
+                    // 写错误文件
                     this.logFile(this.elog(`${err}\r\n`))
                     this.logFile(this.elog(`${u}\r\n`))
                     resolve(-1)
@@ -72,14 +72,22 @@ module.exports =  {
                 },
                 encoding: null //设置encoding
             }, (err, res, body) => {
-                if(res && res.body && res.body.length !== 0) {
-                    resolve(iconv.decode(res.body, t).toString())
+                if(!err && res.statusCode == 200) {
+                    if(body.length !== 0) {
+                        resolve(iconv.decode(body, t).toString())
+                    } else {
+                       // 写错误文件
+                        this.logFile(this.elog(`${err}\r\n`))
+                        this.logFile(this.elog(`${u}\r\n`))
+                        resolve(-1)
+                    }
                 } else {
-                   // 写错误文件
+                    // 写错误文件
                     this.logFile(this.elog(`${err}\r\n`))
                     this.logFile(this.elog(`${u}\r\n`))
                     resolve(-1)
                 }
+                
             })
         }).catch(err => {
             this.logFile(this.elog(`${err}\r\n`))
@@ -254,4 +262,8 @@ module.exports =  {
     int(str) {
         return parseInt(str)
     },
+    // 字符串截取
+    str_cut(str, len = 6, start = 0) {
+        return str.substr(start, len)
+    }
 }

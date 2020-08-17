@@ -3,7 +3,7 @@ const mysql = require('mysql')
 // const fs = require('fs')
 const com = require('./com')
 const conf = require('./config')
-const { sleep } = require('./com')
+const { sleep, str_cut } = require('./com')
 
 const db = mysql.createConnection(conf.db)
 const TB = 'area'
@@ -28,6 +28,7 @@ show_link = show_link == 1 ? true : false
 
 let total = 0
 , count = 0
+, re_try = conf.re_try || 5
 
 start()
 
@@ -103,16 +104,31 @@ function grab(pid, link, level, link_str) {
                 tag = 'villagetr'
                 lv = 5
             }
-            let d = await com.req_iconv(link)
-            , $ = cheerio.load(d)
-            , res = $(`.${tag}`)
+            let d, $, res
             //console.log(`link_Str: ${u_str}  level: ${level}  length: ${res.length} url: ${link}`)
             //console.log(link)
             //console.log(res.length + `[${link}]`)
+            let sec = 0
+            for(let i = 0; i <= re_try; i ++) {
+                let tmp_d = await com.req_iconv(link)
+                , tmp_$ = cheerio.load(tmp_d)
+                , tmp_res = tmp_$(`.${tag}`)
+                if(tmp_res.length == 0 && i < re_try) {
+                    sec += 10
+                    console.log(com.elog(`###### 没有数据，${sec}秒后进行第${i+1}次重试`))
+                    await sleep(sec*1000)
+                } else {
+                    d = tmp_d
+                    $ = tmp_$
+                    res = tmp_res
+                    break
+                }
+            }
             if(res.length == 0) {
-                com.logFile(com.elog(`${link}: no result\r\n`))
+                com.logFile(com.elog(`${link}  => no result\r\n`))
                 resolve('no result')
             }
+            
             total += res.length
             for(let i = 0; i < res.length; i ++) {
                 let dom = $(res[i])
@@ -121,9 +137,10 @@ function grab(pid, link, level, link_str) {
                 , str = u_str
                 //console.log(td.length)
                 if(a.length == 0) {
+                    let code = td.eq(0).text()
                     let data = {
                         pid: pid,
-                        code: td.eq(0).text(),
+                        code: end_level <= 3 ? str_cut(code) : code,
                         name: td.eq(1).text(),
                         level: lv,
                     }
@@ -138,9 +155,10 @@ function grab(pid, link, level, link_str) {
                     //resolve(ret_pid)
                     continue
                 } else {
+                    let code = a.eq(0).text()
                     let data = {
                         pid: pid,
-                        code: a.eq(0).text(),
+                        code: end_level <= 3 ? str_cut(code) : code,
                         name: a.eq(1).text(),
                         level: lv
                     }
