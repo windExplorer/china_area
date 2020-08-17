@@ -51,7 +51,7 @@ module.exports =  {
                 } else {
                     // 写错误文件
                     this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
-                    resolve(-1)
+                    resolve(null)
                 }
             })
         }).catch(err => {
@@ -76,13 +76,13 @@ module.exports =  {
                     } else {
                        // 写错误文件
                         this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
-                        resolve(-1)
+                        resolve(null)
                     }
                 } else {
                     // 写错误文件
                     this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
                     //this.logFile(this.elog(`${u}\r\n`))
-                    resolve(-1)
+                    resolve(null)
                 }
                 
             })
@@ -105,15 +105,15 @@ module.exports =  {
                     resolve(res.data)
                 } else {
                    // 写错误文件
-                   this.logFile(this.elog(`${err}\r\n`))
-                   this.logFile(this.elog(`${u}\r\n`))
-                   resolve(-1) 
+                    this.logFile(this.elog(`${err}\r\n`))
+                    this.logFile(this.elog(`${u}\r\n`))
+                    resolve(null) 
                 }
             })
         }).catch(err => {
             this.logFile(this.elog(`${err}\r\n`))
             this.logFile(this.elog(`${u}\r\n`))
-            reject(-1)
+            reject(null)
         })
     },
     // 数据库添加
@@ -123,7 +123,7 @@ module.exports =  {
                 //if (error) throw error
                 if(error) {
                     this.logFile(this.elog(`写库失败! ${error} \r\n`))
-                    resolve(-1)
+                    resolve(null)
                 }
                 else  {
                     // console.log(results)
@@ -132,7 +132,7 @@ module.exports =  {
                     
             })
         }).catch(err => {
-            reject(-1)
+            reject(null)
         })
     },
     
@@ -144,7 +144,7 @@ module.exports =  {
                 if(error) {
                     console.log(error)
                     this.logFile(this.elog(`查询失败! ${error} \r\n`))
-                    resolve(-1)
+                    resolve(null)
                 }
                 else  
                     resolve(results)
@@ -161,7 +161,7 @@ module.exports =  {
                 //if (error) throw error
                 if(error) {
                     this.logFile(this.elog(`更新失败! ${error} \r\n`))
-                    resolve(-1)
+                    resolve(null)
                 }
                 else  
                     resolve(results)
@@ -179,7 +179,7 @@ module.exports =  {
                 //if (error) throw error
                 if(error) {
                     this.logFile(this.elog(`删除失败! ${error} \r\n`))
-                    resolve(-1)
+                    resolve(null)
                 }
                 else  
                     resolve(results)
