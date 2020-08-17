@@ -129,7 +129,7 @@ function grab(pid, link, level, link_str) {
                 }
             }
             if(res.length == 0) {
-                com.logFile(com.elog(`${link}  => no result\r\n`))
+                com.logFile(com.elog(`重试结束，但仍然失败: ${link}  => no result\r\n`))
                 resolve('no result')
             }
             
