@@ -5,12 +5,13 @@ const com = require('./com')
 const conf = require('./config')
 const { sleep, str_cut } = require('./com')
 
-const db = mysql.createConnection(conf.db)
+let db = mysql.createConnection(conf.db)
+com.db = db
 const TB = 'area'
 const ERROR = `./error_log${+ new Date()}.txt`
 
 // const com = new com()
-com.db = db
+
 com.TB = TB
 com.ERROR = ERROR
 
@@ -116,7 +117,10 @@ function grab(pid, link, level, link_str) {
                 if(tmp_res.length == 0 && i < re_try) {
                     sec += 10
                     console.log(com.elog(`###### 没有数据，${sec}秒后进行第${i+1}次重试`))
+                    db.end()
                     await sleep(sec*1000)
+                    db = mysql.createConnection(conf.db)
+                    com.db = db
                 } else {
                     d = tmp_d
                     $ = tmp_$

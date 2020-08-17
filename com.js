@@ -50,14 +50,12 @@ module.exports =  {
                     resolve(body)
                 } else {
                     // 写错误文件
-                    this.logFile(this.elog(`${err}\r\n`))
-                    this.logFile(this.elog(`${u}\r\n`))
+                    this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
                     resolve(-1)
                 }
             })
         }).catch(err => {
-            this.logFile(this.elog(`${err}\r\n`))
-            this.logFile(this.elog(`${u}\r\n`))
+            this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
             reject(-1)
         })
     },
@@ -77,14 +75,13 @@ module.exports =  {
                         resolve(iconv.decode(body, t).toString())
                     } else {
                        // 写错误文件
-                        this.logFile(this.elog(`${err}\r\n`))
-                        this.logFile(this.elog(`${u}\r\n`))
+                        this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
                         resolve(-1)
                     }
                 } else {
                     // 写错误文件
-                    this.logFile(this.elog(`${err}\r\n`))
-                    this.logFile(this.elog(`${u}\r\n`))
+                    this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
+                    //this.logFile(this.elog(`${u}\r\n`))
                     resolve(-1)
                 }
                 
