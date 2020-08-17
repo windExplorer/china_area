@@ -10,7 +10,7 @@ const { sleep, str_cut } = require('./com')
 let db = mysql.createConnection(conf.db)
 com.db = db
 const TB = 'area'
-const ERROR = `./error_log${+ new Date()}.txt`
+const ERROR = `./error_log_${+ new Date()}.txt`
 
 // const com = new com()
 
@@ -40,8 +40,8 @@ async function start() {
     let time_s = +new Date()
     console.log(com.elog(`##### 开始采集数据[2019年统计用区划和城乡划分代码]: ${show_link ? domain : ''}`))
     let u = domain
-    , d = await com.req_iconv(u)
-    if(d == -1) {
+    , d = await com.req_got_iconv(u)
+    if(d == null) {
         console.log(com.elog('### 请求出错，退出作业'))
         db.end()
         return
@@ -113,7 +113,7 @@ function grab(pid, link, level, link_str) {
             //console.log(res.length + `[${link}]`)
             let sec = 0
             for(let i = 0; i <= re_try; i ++) {
-                let tmp_d = await com.req_iconv(link)
+                let tmp_d = await com.req_got_iconv(link)
                 if(tmp_d == null) {
                     if( i < re_try) {
                         sec += 10

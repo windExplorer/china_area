@@ -6,6 +6,8 @@ const path = require('path')
 // const os = require('os')
 const iconv = require('iconv-lite') // 中文转码
 const moment = require('moment') // 时间格式化处理
+const got = require('got')
+
 // const cheerio = require('cheerio')
 const userAgents = [
     'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.0.12) Gecko/20070731 Ubuntu/dapper-security Firefox/1.5.0.12',
@@ -117,6 +119,47 @@ module.exports =  {
             this.logFile(this.elog(`${u}\r\n`))
             reject(null)
         })
+    },
+    // got请求
+    async req_got(u) {
+        try {
+            let res = await got(u)
+            if(res && res.statusCode == 200 && res.body.length != 0) {
+                return res.body
+            } else {
+                this.logFile(this.elog(`Error: ${res.statusCode} ${res.statusMessage} => ${u}\r\n`))
+                return null
+            }
+            //=> '<!doctype html> ...'
+        } catch (error) {
+            //console.log(error.response.body)
+            this.logFile(this.elog(`Error: ${error.response.body} => ${u}\r\n`))
+            return null
+            //=> 'Internal server error ...'
+        }
+    },
+    // got_iconv请求
+    async req_got_iconv(u, code = 'gb2312') {
+        let req = got(u, {maxRedirects: 5, retry: 0})
+        try {
+            let res = await req
+            if(res && res.statusCode == 200 && res.body.length != 0) {
+                req.cancel()
+                return iconv.decode(res.rawBody, code).toString()
+            } else {
+                req.cancel()
+                this.logFile(this.elog(`Error: ${res.statusCode} ${res.statusMessage} => ${u}\r\n`))
+                return null
+            }
+            //=> '<!doctype html> ...'
+        } catch (error) {
+            req.cancel()
+            //console.log(error)
+            //console.log(error.response.body)
+            this.logFile(this.elog(`Error: ${error.response.body} => ${u}\r\n`))
+            return null
+            //=> 'Internal server error ...'
+        }
     },
     // 数据库添加
     add(data) {

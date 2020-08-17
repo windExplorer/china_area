@@ -12,6 +12,7 @@
     "axios": "^0.19.2",
     "cheerio": "^1.0.0-rc.3",
     "fs": "0.0.1-security",
+    "got": "^11.5.2",
     "iconv-lite": "^0.6.2",
     "moment": "^2.27.0",
     "mysql": "^2.18.1",
