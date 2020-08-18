@@ -140,7 +140,7 @@ module.exports =  {
     },
     // got_iconv请求
     async req_got_iconv(u, code = 'gb2312') {
-        let req = got(u, {maxRedirects: 5, retry: 0})
+        let req = got(u, {maxRedirects: 1, retry: 0})
         try {
             let res = await req
             if(res && res.statusCode == 200 && res.body.length != 0) {

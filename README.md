@@ -14,7 +14,8 @@
 #### 文件介绍
 
 - area_null.sql 空表数据
-- area.sql 省市区 3级数据
+- area_lv3.sql 省市区 3级数据
+- area_lv5.sql 省市区镇村 5级数据
 - config.js 配置文件
 - com.js 共用方法文件
 - index.js 主要文件
