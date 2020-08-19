@@ -1,14 +1,14 @@
 /*
  Navicat Premium Data Transfer
 
- Source Server         : aiu
+ Source Server         : 本地
  Source Server Type    : MySQL
- Source Server Version : 80017
- Source Host           : aiu.pub:5001
+ Source Server Version : 80012
+ Source Host           : localhost:3306
  Source Schema         : china_area
 
  Target Server Type    : MySQL
- Target Server Version : 80017
+ Target Server Version : 80012
  File Encoding         : 65001
 
  Date: 17/08/2020 14:25:19
