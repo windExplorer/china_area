@@ -1,14 +1,9 @@
+const moment = require('moment')
 const fs = require('fs')
-const request = require('request')
-const axios = require('axios')
-// const mysql = require('mysql')
 const path = require('path')
-// const os = require('os')
-const iconv = require('iconv-lite') // 中文转码
-const moment = require('moment') // 时间格式化处理
 const got = require('got')
+const iconv = require('iconv-lite')
 
-// const cheerio = require('cheerio')
 const userAgents = [
     'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.0.12) Gecko/20070731 Ubuntu/dapper-security Firefox/1.5.0.12',
     'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0; Acoo Browser; SLCC1; .NET CLR 2.0.50727; Media Center PC 5.0; .NET CLR 3.0.04506)',
@@ -34,219 +29,102 @@ const userAgents = [
 ]
 
 
-module.exports =  {
-    ERROR: 'error_com.txt',
-    db: null,
-    TB: null,
-    // 请求
-    req(u) {
-        //console.log(u)
-        return new Promise((resolve, reject) => {
-            request.get({
-                url: u, 
-                maxRedirects: 1,
-                headers: {
-                    'user-agent': userAgents[this.rand_num(0, userAgents.length - 1)]
-                }
-            }, (err, res, body) => {
-                if(!err && res.statusCode == 200) {
-                    resolve(body)
-                } else {
-                    // 写错误文件
-                    this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
-                    resolve(null)
-                }
+module.exports = {
+    async req(u) {
+        let res = null
+        , flag = true
+        , re = 5
+        for(let i = 0; i <= re; i ++) {
+            flag = true
+            res = await got(u, {headers: {
+                "X-Forwarded-For": this.randIp(),
+                'user-agent': userAgents[this.rand_num(0, userAgents.length - 1)]
+            }, timeout: 5000}).catch(e => {
+                flag = false
+                console.log(`# ${e.toString()}`)
             })
-        }).catch(err => {
-            this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
-            reject(-1)
-        })
-    },
-    // 转码请求
-    req_iconv(u, t = 'gb2312') {
-        //console.log(u)
-        return new Promise((resolve, reject) => {
-            request.get({
-                url: u,
-                maxRedirects: 1,
-                headers: {
-                    'user-agent': userAgents[this.rand_num(0, userAgents.length - 1)]
-                },
-                encoding: null //设置encoding
-            }, (err, res, body) => {
-                if(!err && res.statusCode == 200) {
-                    if(body.length !== 0) {
-                        resolve(iconv.decode(body, t).toString())
-                    } else {
-                       // 写错误文件
-                        this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
-                        resolve(null)
-                    }
-                } else {
-                    // 写错误文件
-                    this.logFile(this.elog(`req_error: ${err} => ${u}\r\n`))
-                    //this.logFile(this.elog(`${u}\r\n`))
-                    resolve(null)
-                }
-                
-            })
-        }).catch(err => {
-            this.logFile(this.elog(`${err}\r\n`))
-            this.logFile(this.elog(`${u}\r\n`))
-            reject(-1)
-        })
-    },
-    // 请求
-    req_axios(u) {
-        //console.log(u)
-        return new Promise((resolve, reject) => {
-            axios.get(u, {
-                headers: {
-                    'user-agent': userAgents[this.rand_num(0, userAgents.length - 1)]
-                },
-            }).then(res => {
-                if(res && res.data) {
-                    resolve(res.data)
-                } else {
-                   // 写错误文件
-                    this.logFile(this.elog(`${err}\r\n`))
-                    this.logFile(this.elog(`${u}\r\n`))
-                    resolve(null) 
-                }
-            })
-        }).catch(err => {
-            this.logFile(this.elog(`${err}\r\n`))
-            this.logFile(this.elog(`${u}\r\n`))
-            reject(null)
-        })
-    },
-    // got请求
-    async req_got(u) {
-        try {
-            let res = await got(u)
-            if(res && res.statusCode == 200 && res.body.length != 0) {
-                return res.body
-            } else {
-                this.logFile(this.elog(`Error: ${res.statusCode} ${res.statusMessage} => ${u}\r\n`))
-                return null
+            if(!flag) {
+                this.elog(`# 正在重试: ${u}`)
+                await this.sleep(1500)
+                continue
             }
-            //=> '<!doctype html> ...'
-        } catch (error) {
-            //console.log(error.response.body)
-            this.logFile(this.elog(`Error: ${error.response.body} => ${u}\r\n`))
-            return null
-            //=> 'Internal server error ...'
+            break
         }
+        return res || null
     },
-    // got_iconv请求
-    async req_got_iconv(u, code = 'gb2312') {
-        let req = got(u, {maxRedirects: 1, retry: 0})
-        try {
-            let res = await req
-            if(res && res.statusCode == 200 && res.body.length != 0) {
-                req.cancel()
-                return iconv.decode(res.rawBody, code).toString()
-            } else {
-                req.cancel()
-                this.logFile(this.elog(`Error: ${res.statusCode} ${res.statusMessage} => ${u}\r\n`))
-                return null
+    async req_iconv(u, code = 'gb2312') {
+        let res = null
+        , flag = true
+        , re = 5
+        for(let i = 0; i <= re; i ++) {
+            flag = true
+            res = await got(u, {headers: {
+                "X-Forwarded-For": this.randIp(),
+                'user-agent': userAgents[this.rand_num(0, userAgents.length - 1)]
+            }, timeout: 5000}).catch(e => {
+                flag = false
+                this.elog(`# ${e.toString()}`)
+            })
+            if(!flag) {
+                this.elog(`# 正在重试: ${u}`)
+                await this.sleep(1500)
+                continue
             }
-            //=> '<!doctype html> ...'
-        } catch (err) {
-            req.cancel()
-            // console.log(err)
-            //console.log(error.response.body)
-            this.logFile(this.elog(`Error: ${err} => ${u}\r\n`))
-            return null
-            //=> 'Internal server error ...'
+            break
         }
+        let body
+        if(flag && res && res.rawBody) {
+            body = iconv.decode(res.rawBody, code).toString()
+        }
+        return body || null
     },
-    // 数据库添加
-    add(data) {
-        return new Promise((resolve, reject) => {
-            this.db.query(`INSERT INTO ${this.TB} SET ?`, data, (error, results, fields) => {
-                //if (error) throw error
-                if(error) {
-                    this.logFile(this.elog(`写库失败! ${error} \r\n`))
-                    resolve(null)
-                }
-                else  {
-                    // console.log(results)
-                    resolve(results.insertId)
-                }
-                    
-            })
-        }).catch(err => {
-            reject(null)
-        })
+    formatDiffTime(s) {
+        let diff = +new Date() - s
+        
     },
-    
-    // 查找 
-    select(sql) {
-        return new Promise((resolve, reject) => {
-            this.db.query(sql, (error, results, fields) => {
-                //if (error) throw error
-                if(error) {
-                    console.log(error)
-                    this.logFile(this.elog(`查询失败! ${error} \r\n`))
-                    resolve(null)
-                }
-                else  
-                    resolve(results)
-            })
-        }).catch(err => {
-            reject(-1)
-        })
-    },
-
-    // 修改
-    update(sql) {
-        return new Promise((resolve, reject) => {
-            this.db.query(sql, (error, results, fields) => {
-                //if (error) throw error
-                if(error) {
-                    this.logFile(this.elog(`更新失败! ${error} \r\n`))
-                    resolve(null)
-                }
-                else  
-                    resolve(results)
-            })
-        }).catch(err => {
-            reject(-1)
-        })
-
-    },
-
-    // 删除
-    delete(sql) {
-        return new Promise((resolve, reject) => {
-            this.db.query(sql, (error, results, fields) => {
-                //if (error) throw error
-                if(error) {
-                    this.logFile(this.elog(`删除失败! ${error} \r\n`))
-                    resolve(null)
-                }
-                else  
-                    resolve(results)
-            })
-        }).catch(err => {
-            reject(-1)
-        })
-
-    },
-
-    // 下载文件
-    downloadImage(src, dest, callback) {
-        src = encodeURI(src)
-        request.head(src, (err, res, body) => {
-            // console.log('content-type:', res.headers['content-type']);
-            // console.log('content-length:', res.headers['content-length']);
-            if (src) {
-                request(src).pipe(fs.createWriteStream(dest)).on('close', function() {
-                    callback(null, dest)
-                })
+    formatFileName(dir, name) {
+        let file = ''
+        for(let i = 0;; i ++) {
+            if(i == 0)
+                file = `${dir}${name}.txt`
+            else
+                file = `${dir}${name}_${i}.txt`
+            if(fs.existsSync(file)) {
+                continue
+            } else {
+                break
             }
-        })
+        }
+        return file
+    },
+    // 获取连接中的id
+    getUrlId(url) {
+        let r = url.split('/')
+        r = r[r.length-1]
+        r = r.split('.')[0]
+        return r
+    },
+    enBase64(str) {
+        return Buffer.from(str).toString('base64')
+    },
+    deBase64(str) {
+        return Buffer.from(str, 'base64').toString()
+    },
+    // 休眠 ms
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms))
+    },
+    elog(txt) {
+        console.log(`[${this.now()}] ${txt}`)
+    },
+    time() {
+        return new Date().toLocaleString()
+    },
+    now() {
+        return moment().format('YYYY-MM-DD kk:mm:ss')
+    },
+    now2() {
+        return moment().format('YYYYMMDDkkmmss')
     },
     // 递归创建目录 同步方法
     mkdirsSync(dirname) {
@@ -260,29 +138,35 @@ module.exports =  {
                 return false
         }
     },
-    
-    // 休眠 ms
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms))
+    // 格式化文件尺寸
+    renderSize(value) {
+        if(null == value|| value == ''){
+            return "0 Bytes"
+        }
+        let unitArr = ["Bytes","KB","MB","GB","TB","PB","EB","ZB","YB"]
+        , index = 0
+        , srcsize = parseFloat(value)
+        index = Math.floor(Math.log(srcsize)/Math.log(1024))
+        let size =srcsize/Math.pow(1024,index)
+        size=size.toFixed(2) //保留的小数位数
+        return size+unitArr[index]
     },
-    
-    elog(txt) {
-        return `[${this.time()}] ${txt}`
+    // &#x unicode转中文
+    de_unesc(str) {
+        if(str)
+            return unescape(str.replace(/&#x/g,'%u').replace(/;/g,''))
+        else
+            return str
     },
-    
-    logFile(txt) {
-        //txt = this.elog(txt)
-        this.mkdirsSync('./logs/')
-        fs.writeFileSync('./logs/'+this.ERROR, txt, {flag: 'a'})
+    // 中文转 &#x unicode
+    en_unesc(str) {
+        return str.replace(/[^\u0000-\u00FF]/g,function(a){return escape(a).replace(/(%u)(\w{4})/gi,"&#x$2;")})
     },
     // 随机数字
     rand_num(Min, Max) {
 		let Range = Max - Min
 		, Rand = Math.random()
 		return(Min + Math.round(Rand * Range))
-    },
-    time() {
-        return new Date().toLocaleString()
     },
     // 时间戳(ms)转正常日期
     time_to_date(t) {
@@ -301,6 +185,51 @@ module.exports =  {
     rtrim(str) { //删除右边的空格
 　　     return str.replace(/(\s*$)/g,"")
 　　},
+    atrim(str) { // 删除所有空
+        return str.replace(/\s/g, '')
+    },
+    // 写文件
+    wFile(file, txt = '', flag = 'w') {
+        fs.writeFileSync(file, txt, {flag: flag})
+    },
+    // 计算文件大小
+    fSize(file) {
+        return this.renderSize(fs.statSync(file).size)
+    },
+    // 删除文件
+    rm_file(file) {
+        if(fs.existsSync(file))
+            fs.unlinkSync(file)
+    },
+    // fread 读取文件
+    fRead(file) {
+        if(fs.existsSync(file))
+            return fs.readFileSync(file, 'utf-8') || 0
+        else
+            return false
+    },
+    // 全局替换某些文字
+    arep(str, txt, txt2 = '') {
+        let regExp = new RegExp(this.escapeRegex(txt), 'g')
+        str = str.replace(regExp, txt2)
+        return str
+    },
+    // 正则转义
+    escapeRegex(string) {
+        return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    },
+    // 随机ip
+    randIp() {
+        return (
+            Math.floor(Math.random() * (10 - 255) + 255) +
+            "." +
+            Math.floor(Math.random() * (10 - 255) + 255) +
+            "." +
+            Math.floor(Math.random() * (10 - 255) + 255) +
+            "." +
+            Math.floor(Math.random() * (10 - 255) + 255)
+        )
+    },
     int(str) {
         return parseInt(str)
     },

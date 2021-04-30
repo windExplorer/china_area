@@ -2,22 +2,25 @@
   "name": "china_area",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "config.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/sshift/china_area.git"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^0.19.2",
-    "cheerio": "^1.0.0-rc.3",
-    "fs": "0.0.1-security",
-    "got": "^11.5.2",
+    "async": "^3.2.0",
+    "cheerio": "^1.0.0-rc.6",
+    "fs": "*",
+    "got": "^11.8.2",
     "iconv-lite": "^0.6.2",
-    "moment": "^2.27.0",
-    "mysql": "^2.18.1",
-    "os": "^0.1.1",
-    "path": "^0.12.7",
-    "request": "^2.88.2"
+    "knex": "^0.95.4",
+    "moment": "^2.29.1",
+    "mysql2": "^2.2.5",
+    "path": "^0.12.7"
   }
 }

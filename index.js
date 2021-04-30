@@ -1,21 +1,16 @@
-const cheerio = require('cheerio')
-const mysql = require('mysql')
-const EventEmitter = require('events')
-const life = new EventEmitter()
-// const fs = require('fs')
 const com = require('./com')
 const conf = require('./config')
-const { sleep, str_cut } = require('./com')
+const cheerio = require('cheerio')
 
-let db = mysql.createConnection(conf.db)
-com.db = db
-const TB = 'area'
-const ERROR = `./error_log_${+ new Date()}.txt`
+const knex = require('knex')({
+    client: 'mysql2',
+    connection: conf.DB,
+    pool: { min: 0, max: 7 }
+})
 
-// const com = new com()
+const TB = conf.TB
 
-com.TB = TB
-com.ERROR = ERROR
+const BASE = 'http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/'
 
 // 获取命令行参数：0 1 2
 // 2: 采集级别，默认全部，一般是3级[省市区],最高5级
@@ -23,34 +18,92 @@ com.ERROR = ERROR
 const argv = process.argv
 //console.log(argv)
 
-let domain = 'http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/'
+let total = 0
+, count = 0
+, domain = ''
+, re_try = conf.RE_TRY || 5
 , end_level = argv[2] || 3
 , show_link = argv[3] || 2
 end_level = com.int(end_level)
 show_link = show_link == 1 ? true : false
 
-let total = 0
-, count = 0
-, re_try = conf.re_try || 5
+const ERR_LOG = com.ERR_LOG
 
 start()
-
-
 async function start() {
-    let time_s = +new Date()
-    console.log(com.elog(`##### 开始采集数据[2019年统计用区划和城乡划分代码]: ${show_link ? domain : ''}`))
-    let u = domain
-    , d = await com.req_got_iconv(u)
-    if(d == null) {
-        console.log(com.elog('### 请求出错，退出作业'))
-        db.end()
+    let flag = true
+    // 判断是否存在数据库
+    let hasTab = await knex.schema.hasTable(TB)
+    if(!hasTab) {
+        // 创建数据库表
+        let sql = "CREATE TABLE `"+TB+"`  ("+
+        "  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '编号',"+
+        "  `pid` bigint(20) NULL DEFAULT 0 COMMENT '父节点',"+
+        "  `code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '统计用区划代码',"+
+        "  `code2` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '城乡分类代码',"+
+        "  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '名称',"+
+        "  `level` tinyint(2) NULL DEFAULT 0 COMMENT '级别',"+
+        "  PRIMARY KEY (`id`) USING BTREE"+
+        ") ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;";
+    
+        let createTab = await knex.schema.raw(sql).catch(e => {
+            console.log(e.toString())
+            com.elog(`## 表创建失败`)
+            flag = false
+        })
+        if(!createTab) {
+            com.elog(`## 表创建失败`)
+            flag = false
+        }
+        if(!flag) {
+            knex.destroy()
+            return
+        }
+        com.elog(`表${TB}创建成功`)
+    }
+    // 获取最新的链接
+    let res = await com.req(BASE)
+    //let body = iconv.decode(res.rawBody, 'utf8').toString()
+    let body = res.body
+    if(!body) {
+        com.elog(`## 没有获取到数据 ${BASE}`)
+        knex.destroy()
         return
+    }
+    let  $ = cheerio.load(body)
+    let a = $('.center_list_contlist li:nth-child(1) a')
+    let url = a.attr('href')
+    let year = a.find('.cont_tit03').text()
+    let update = a.find('.cont_tit02').text()
+    if(!url) {
+        com.elog(`## 没有获取到最新链接`)
+        knex.destroy()
+        return
+    }
+    com.elog(`## 最新划分[${year}]更新日期: ${update}  ${url}`)
+    // 正式开始采集
+    await step2(url)
+
+    knex.destroy()
+
+}
+
+async function step2(u) {
+    let time_s = +new Date()
+    , d = await com.req_iconv(u)
+    , u0 = u.split('/')
+    u0[u0.length-1] = ''
+    u0 = u0.join('/')
+    domain = u0
+    if(!d) {
+        com.elog('### 请求出错，退出作业')
+        return false
     }
     let $ = cheerio.load(d)
     , res = $('.provincetr a')
     if(res.length == 0) {
-        console.log(com.elog(`### 没有找到数据`))
-        return
+        com.elog(`### 没有找到数据`)
+        return false
     }
     total += res.length
     for(let i = 0; i < res.length; i ++) {
@@ -58,7 +111,7 @@ async function start() {
         let dom = $(res[i])
         , name = dom.text()
         , link_str = dom.attr('href').split('.')[0] + '/'
-        , link = u + dom.attr('href')
+        , link = u0 + dom.attr('href')
         let data = {
             pid: 0,
             code: '',
@@ -67,24 +120,21 @@ async function start() {
         }
         console.log()
         console.log()
-        console.log(com.elog(`#### [${count}/${total}] 正在采集 ${name}`))
-        let id = await com.add(data)
+        com.elog(`#### [${count}/${total}] 正在采集 ${name}`)
+        let id = await knex(TB).insert(data)
         count += 1
         // console.log(id)
         if(id > 0) {
-            console.log(com.elog(`#### 开始插入 ${name} 数据: `))
+            com.elog(`#### 开始插入 ${name} 数据: `)
             let ret = await grab(id, link, 2, link_str)
-            console.log(com.elog(`##################### ${ret}`))
+            com.elog(`##################### ${ret}`)
         }
-        console.log(com.elog(`#### ${name} 采集完毕 耗时: ${((+new Date() - grab_time_s)/1000).toFixed(2)}s`))
+        com.elog(`#### ${name} 采集完毕 耗时: ${((+new Date() - grab_time_s)/1000).toFixed(2)}s`)
+        
     }    
-
-
-    db.end()
-    console.log(com.elog(`##### 全部采集完毕，共采集[${count}/${total}] 耗时: ${((+new Date() - time_s)/1000).toFixed(2)}s`))
-    
+    com.elog(`##### 全部采集完毕，共采集[${count}/${total}] 耗时: ${((+new Date() - time_s)/1000).toFixed(2)}s`)
+    return true
 }
-
 
 function grab(pid, link, level, link_str) {
     return new Promise((resolve, reject) => {
@@ -113,15 +163,12 @@ function grab(pid, link, level, link_str) {
             //console.log(res.length + `[${link}]`)
             let sec = 0
             for(let i = 0; i <= re_try; i ++) {
-                let tmp_d = await com.req_got_iconv(link)
-                if(tmp_d == null) {
+                let tmp_d = await com.req_iconv(link)
+                if(!tmp_d) {
                     if( i < re_try) {
                         sec += 10
-                        console.log(com.elog(`###### 没有数据，${sec}秒后进行第${i+1}次重试`))
-                        db.end()
+                        com.elog(`###### 没有数据，${sec}秒后进行第${i+1}次重试`)
                         await sleep(sec*1000)
-                        db = mysql.createConnection(conf.db)
-                        com.db = db
                         continue
                     }
                 }
@@ -142,7 +189,9 @@ function grab(pid, link, level, link_str) {
                 break
             }
             if(res.length == 0) {
-                com.logFile(com.elog(`重试结束，但仍然失败: ${link}  => no result\r\n`))
+                com.elog(`重试结束，但仍然失败: ${link}  => no result\r\n`)
+                // 写日志
+                com.wFile(ERR_LOG, `重试结束，但仍然失败: ${link}  => no result\r\n`, 'a')
                 resolve('no result')
             }
             
@@ -157,7 +206,7 @@ function grab(pid, link, level, link_str) {
                     let code = td.eq(0).text()
                     let data = {
                         pid: pid,
-                        code: end_level <= 3 ? str_cut(code) : code,
+                        code: conf.SHORT_CODE && end_level <= 3 ? com.str_cut(code) : code,
                         name: td.eq(1).text(),
                         level: lv,
                     }
@@ -166,8 +215,8 @@ function grab(pid, link, level, link_str) {
                         data.name = td.eq(2).text()
                     }
                     //console.log(data)
-                    console.log(com.elog(`### [${count}/${total}] 正在采集1 ${data.name} [${show_link ? link : '*_*'}]`))
-                    let ret_pid = await com.add(data)
+                    com.elog(`### [${count}/${total}] 正在采集1 ${data.name} [${show_link ? link : '*_*'}]`)
+                    let ret_pid = await knex(TB).insert(data)
                     count += 1
                     //resolve(ret_pid)
                     continue
@@ -175,7 +224,7 @@ function grab(pid, link, level, link_str) {
                     let code = a.eq(0).text()
                     let data = {
                         pid: pid,
-                        code: end_level <= 3 ? str_cut(code) : code,
+                        code: conf.SHORT_CODE && end_level <= 3 ? com.str_cut(code) : code,
                         name: a.eq(1).text(),
                         level: lv
                     }
@@ -184,8 +233,8 @@ function grab(pid, link, level, link_str) {
                         data.name = a.eq(2).text()
                     }
                     //console.log(data)
-                    console.log(com.elog(`### [${count}/${total}] 正在采集2 ${data.name} [${show_link ? link : '*_*'}]`))
-                    let ret_pid = await com.add(data)
+                    com.elog(`### [${count}/${total}] 正在采集2 ${data.name} [${show_link ? link : '*_*'}]`)
+                    let ret_pid = await knex(TB).insert(data)
                     count += 1
                     if(lv >= end_level) {
                         continue
