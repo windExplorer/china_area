@@ -13,14 +13,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "async": "^3.2.0",
-    "cheerio": "^1.0.0-rc.6",
-    "fs": "*",
-    "got": "^11.8.2",
-    "iconv-lite": "^0.6.2",
-    "knex": "^0.95.4",
+    "async": "^3.2.2",
+    "cheerio": "^1.0.0-rc.10",
+    "fs": "0.0.2",
+    "got": "^11.8.3",
+    "iconv-lite": "^0.6.3",
+    "knex": "^0.95.15",
     "moment": "^2.29.1",
-    "mysql2": "^2.2.5",
+    "mysql2": "^2.3.3",
     "path": "^0.12.7"
   }
 }

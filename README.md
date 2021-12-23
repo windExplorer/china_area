@@ -19,7 +19,7 @@
     - `v1-3级.sql`  省市区三级
     - `v1-5级.sql`  省市区镇村五级
 - **数据中不包括港澳台地区**
-- 有问题可以联系qq: `1479221500`，可以一起探讨交流技术
+- 有问题可以加QQ群: `1035325026`，一起探讨交流技术
 - 也欢迎将问题提交到issue
 
 ## 安装教程
@@ -29,8 +29,8 @@
     - 使用字符集: `uft8mb4`
     - 排序规则: `utf8mb4_general_ci`
 3. 配置淘宝`npm`镜像 
-    - `npm config set registry https://registry.npm.taobao.org` 
-    - 也可以用`cnpm`
+    - `npm config set registry https://registry.npmmirror.com` 
+    - 也可以用`cnpm`: `npm install -g cnpm --registry=https://registry.npmmirror.com`
 4. 命令行打开到项目根目录，输入 `npm install` 或 `cnpm install` 安装必需库
 5. 配置一下`config.js` (配置项跟着注释来)
 6. 运行 `node index.js` 即可开始采集
@@ -43,10 +43,16 @@
     - 经过测试：`57~60秒`可以采集完毕
 4. 2020年5级的成功数据大概是 `679237` 条
     - 经过测试：`4.7~5小时`能采集完
+5. `node index.js tree` 生成 `json` 文件
+6. `node index.js tree js` 生成 `js` 文件
 
 
 ## 更新日志
 
+### V1.1
+- 时间: 2021/12/23
+- 更新:
+    - 新增生成json和js文件
 ### V1.0
 
 - 时间: 2021/04/28
