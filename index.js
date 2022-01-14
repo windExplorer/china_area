@@ -132,7 +132,7 @@ async function start() {
 
 async function step2(u) {
   let time_s = +new Date(),
-    d = await com.req_iconv(u),
+    d = await com.req_iconv(u, conf.CHARSET),
     u0 = u.split("/");
   u0[u0.length - 1] = "";
   u0 = u0.join("/");
@@ -214,7 +214,7 @@ function grab(pid, link, level, link_str) {
       //console.log(res.length + `[${link}]`)
       let sec = 0;
       for (let i = 0; i <= re_try; i++) {
-        let tmp_d = await com.req_iconv(link);
+        let tmp_d = await com.req_iconv(link, conf.CHARSET);
         if (!tmp_d) {
           if (i < re_try) {
             sec += 10;
