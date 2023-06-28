@@ -194,7 +194,7 @@ module.exports = {
     return str.replace(/\s/g, "");
   },
   // 写文件
-  wFile(file, txt = "", flag = "w") {
+  wFile(file, txt = "", flag = "w") { // flag w a
     fs.writeFileSync(file, txt, { flag: flag });
   },
   // 计算文件大小

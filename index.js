@@ -10,7 +10,10 @@ const knex = require("knex")({
 
 const TB = conf.TB;
 
-const BASE = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/";
+// const HOME_URL = "http://www.stats.gov.cn/sj/";
+
+// const BASE = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/";
+const BASE = "http://www.stats.gov.cn";
 
 // 获取命令行参数：0 1 [2 3] (node index.js)
 // 命令: node
@@ -87,7 +90,7 @@ async function start() {
       "  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '名称'," +
       "  `level` tinyint(2) NULL DEFAULT 0 COMMENT '级别'," +
       "  PRIMARY KEY (`id`) USING BTREE" +
-      ") ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;";
+      ") ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;";
 
     let createTab = await knex.schema.raw(sql).catch((e) => {
       console.log(e.toString());
@@ -105,25 +108,26 @@ async function start() {
     com.elog(`表${TB}创建成功`);
   }
   // 获取最新的链接
-  let res = await com.req(BASE);
+  const home_url = `${BASE}/sj/`
+  let res = await com.req(home_url);
   //let body = iconv.decode(res.rawBody, 'utf8').toString()
   let body = res.body;
   if (!body) {
-    com.elog(`## 没有获取到数据 ${BASE}`);
+    com.elog(`## 没有获取到数据 ${home_url}`);
     knex.destroy();
     return;
   }
   let $ = cheerio.load(body);
-  let a = $(".center_list_contlist li:nth-child(1) a");
+  let a = $(".qhdm-year a:eq(0)");
   let url = a.attr("href");
-  let year = a.find(".cont_tit03").text();
-  let update = a.find(".cont_tit02").text();
+  let year = com.trim(a.text());
   if (!url) {
     com.elog(`## 没有获取到最新链接`);
     knex.destroy();
     return;
   }
-  com.elog(`## 最新划分[${year}]更新日期: ${update}  ${url}`);
+  url = BASE + url
+  com.elog(`## 最新划分[${year}] ${url}`);
   // 正式开始采集
   await step2(url);
 
@@ -271,8 +275,7 @@ function grab(pid, link, level, link_str) {
           }
           //console.log(data)
           com.elog(
-            `### [${count}/${total}] 正在采集1 ${data.name} [${
-              show_link ? link : "*_*"
+            `### [${count}/${total}] 正在采集1 ${data.name} [${show_link ? link : "*_*"
             }]`
           );
           let ret_pid = await knex(TB).insert(data);
@@ -293,8 +296,7 @@ function grab(pid, link, level, link_str) {
           }
           //console.log(data)
           com.elog(
-            `### [${count}/${total}] 正在采集2 ${data.name} [${
-              show_link ? link : "*_*"
+            `### [${count}/${total}] 正在采集2 ${data.name} [${show_link ? link : "*_*"
             }]`
           );
           let ret_pid = await knex(TB).insert(data);

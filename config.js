@@ -7,7 +7,7 @@ module.exports = {
     port: "3306",
     user: "root",
     password: "root",
-    database: "china_area2021",
+    database: "china_area2022",
     charset: "utf8mb4",
   },
   TB: "area", // 表名,json文件,js文件名

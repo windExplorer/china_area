@@ -4,6 +4,10 @@
   "description": "",
   "main": "config.js",
   "scripts": {
+    "go": "node index.js",
+    "full": "node index.js 5",
+    "exp": "node tools.js",
+    "exp txt": "node tools.js txt",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
