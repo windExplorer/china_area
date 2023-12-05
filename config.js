@@ -7,10 +7,10 @@ module.exports = {
     port: "3306",
     user: "root",
     password: "root",
-    database: "china_area2022",
+    database: "china_area",
     charset: "utf8mb4",
   },
-  TB: "area", // 表名,json文件,js文件名
+  TB: "area3", // 表名,json文件,js文件名
   RE_TRY: 10, // 重试次数
   SHORT_CODE: false, // 短的code(如果采集的数据<=3级,并且此项为true,那么采集到的code会进行精简)
   // SEQ_LOG: './seq.log', // 无用

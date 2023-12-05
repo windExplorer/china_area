@@ -110,7 +110,6 @@ async function start() {
   // 获取最新的链接
   const home_url = `${BASE}/sj/`;
   let res = await com.req(home_url);
-  return;
   //let body = iconv.decode(res.rawBody, 'utf8').toString()
   let body = res.body;
   if (!body) {

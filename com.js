@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const got = require("got");
 const iconv = require("iconv-lite");
+const superagent = require("superagent");
 
 const userAgents = [
   "Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.8.0.12) Gecko/20070731 Ubuntu/dapper-security Firefox/1.5.0.12",
@@ -29,7 +30,18 @@ const userAgents = [
 ];
 
 module.exports = {
-  async req(u) {
+  // 新的请求方式
+  req(u) {
+    let res = null,
+      flag = true,
+      re = 1;
+    superagent.get(u).then((err, res) => {
+      console.log("err", err);
+      console.log("res", res);
+    });
+  },
+
+  async req_got(u) {
     let res = null,
       flag = true,
       re = 5;
@@ -37,8 +49,11 @@ module.exports = {
       flag = true;
       res = await got(u, {
         headers: {
+          Host: "www.stats.gov.cn",
+          Referer: "https://www.stats.gov.cn/sj/",
           "X-Forwarded-For": this.randIp(),
           "user-agent": userAgents[this.rand_num(0, userAgents.length - 1)],
+          "Sec-Ch-Ua": `"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"`,
         },
         timeout: 5000,
       }).catch((e) => {
@@ -62,8 +77,11 @@ module.exports = {
       flag = true;
       res = await got(u, {
         headers: {
+          Host: "www.stats.gov.cn",
+          Referer: "https://www.stats.gov.cn/sj/",
           "X-Forwarded-For": this.randIp(),
           "user-agent": userAgents[this.rand_num(0, userAgents.length - 1)],
+          "Sec-Ch-Ua": `"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"`,
         },
         timeout: 5000,
       }).catch((e) => {
@@ -194,7 +212,8 @@ module.exports = {
     return str.replace(/\s/g, "");
   },
   // 写文件
-  wFile(file, txt = "", flag = "w") { // flag w a
+  wFile(file, txt = "", flag = "w") {
+    // flag w a
     fs.writeFileSync(file, txt, { flag: flag });
   },
   // 计算文件大小
