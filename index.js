@@ -236,6 +236,7 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
     }
     return null;
   }, CLASSES);
+  await page.close();
   return res;
 }
 
