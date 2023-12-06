@@ -1,6 +1,17 @@
 const moment = require("moment");
 const fs = require("fs");
 const path = require("path");
+const pretty = require("pino-pretty");
+const fileStream = fs.createWriteStream(`./log/app-${+new Date()}.log`);
+const pino = require("pino");
+const logger = pino(
+  {},
+  pino.multistream([
+    { stream: fileStream },
+    // { stream: process.stdout }, // 控制台输出
+    { stream: pretty() },
+  ])
+);
 
 module.exports = {
   formatFileName(dir, name) {
@@ -33,7 +44,8 @@ module.exports = {
     return new Promise((resolve) => setTimeout(resolve, ms));
   },
   elog(txt) {
-    console.log(`[${this.now()}] ${txt}`);
+    // console.log(`[${this.now()}] ${txt}`);
+    logger.info(txt);
   },
   time() {
     return new Date().toLocaleString();

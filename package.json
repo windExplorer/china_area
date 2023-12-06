@@ -1,6 +1,6 @@
 {
   "name": "china_area_node",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "基于node的中国统计用区划代码采集",
   "main": "index.js",
   "scripts": {
@@ -17,11 +17,13 @@
   "author": "云端の风",
   "license": "ISC",
   "dependencies": {
-    "fs": "0.0.2",
-    "knex": "^0.95.15",
+    "fs": "^0.0.1-security",
+    "knex": "^3.0.1",
     "moment": "^2.29.1",
-    "mysql2": "^2.3.3",
+    "mysql2": "^3.6.5",
     "path": "^0.12.7",
+    "pino": "^8.16.2",
+    "pino-pretty": "^10.2.3",
     "puppeteer": "^21.5.2"
   }
 }

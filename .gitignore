@@ -4,3 +4,4 @@ bak
 v0/logs/*
 v0/node_modules
 yarn.lock
+log/*
