@@ -200,44 +200,72 @@ async function step3(list = [], level = 3) {
 
 // 通用采集函数
 async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
+  let attempts = 0;
+  let lastError = null;
   const page = await browser.newPage();
-  await page.goto(U, { waitUntil: "domcontentloaded" });
-  let res = await page.evaluate((CLASSES) => {
-    // 循环检测类型
-    let eles;
-    for (let i = 0; i < CLASSES.length; i++) {
-      eles = document.querySelectorAll(CLASSES[i]);
-      if (eles && eles.length > 0) {
-        break;
-      }
-    }
-    if (eles.length > 0) {
-      const arr = [];
-      eles.forEach((ele) => {
-        const as = ele.querySelectorAll("a");
-        const tds = ele.querySelectorAll("td");
-        if (as && as.length > 0) {
-          arr.push({
-            code: as[0].innerText,
-            href: as[0].href,
-            name: as[1].innerText,
-            // level: 2,
-          });
-        } else {
-          arr.push({
-            code: tds[0].innerText,
-            href: "",
-            name: tds[1].innerText,
-            // level: 2,
-          });
+  while (attempts < conf.RE_TRY) {
+    try {
+      await page.goto(U, { waitUntil: "domcontentloaded" });
+      let res = await page.evaluate((CLASSES) => {
+        // 循环检测类型
+        let eles;
+        for (let i = 0; i < CLASSES.length; i++) {
+          eles = document.querySelectorAll(CLASSES[i]);
+          if (eles && eles.length > 0) {
+            break;
+          }
         }
-      });
-      return arr.length > 0 ? arr : null;
+        if (eles.length > 0) {
+          const arr = [];
+          eles.forEach((ele) => {
+            const as = ele.querySelectorAll("a");
+            const tds = ele.querySelectorAll("td");
+            if (as && as.length > 0) {
+              arr.push({
+                code: as[0].innerText,
+                href: as[0].href,
+                name: as[1].innerText,
+                // level: 2,
+              });
+            } else {
+              arr.push({
+                code: tds[0].innerText,
+                href: "",
+                name: tds[1].innerText,
+                // level: 2,
+              });
+            }
+          });
+          return arr.length > 0 ? arr : null;
+        }
+        return null;
+      }, CLASSES);
+      await page.close();
+      return res;
+    } catch (err) {
+      lastError = err;
+      // console.error(`Attempt ${attempts + 1} failed: ${error.message}`);
+      elog(
+        "通用采集",
+        -1,
+        `页面请求失败，正在进行第${attempts + 1}重试 错误信息: ${err?.message}`,
+        U
+      );
+      await new Promise((resolve) =>
+        setTimeout(resolve, conf.DELAY_MS * attempts)
+      );
+      attempts++;
     }
-    return null;
-  }, CLASSES);
-  await page.close();
-  return res;
+  }
+  // throw new Error(`Max retries (${maxRetries}) reached. Last error: ${lastError.message}`);
+  // 重试结束依然报错
+  elog(
+    "通用采集",
+    -1,
+    `页面请求失败，已重试${attempts}次，终止重试，终止采集，最后一次错误信息: ${err?.message}`,
+    U
+  );
+  await end();
 }
 
 // 写数据库 后续：怕有重名的数据，这里使用单条数据写入
