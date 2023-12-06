@@ -1,8 +1,8 @@
 {
-  "name": "china_area",
-  "version": "1.0.0",
-  "description": "",
-  "main": "config.js",
+  "name": "china_area_node",
+  "version": "3.0.0",
+  "description": "基于node的中国统计用区划代码采集",
+  "main": "index.js",
   "scripts": {
     "go": "node index.js",
     "full": "node index.js 5",
@@ -14,20 +14,14 @@
     "type": "git",
     "url": "https://gitee.com/sshift/china_area.git"
   },
-  "author": "",
+  "author": "云端の风",
   "license": "ISC",
   "dependencies": {
-    "async": "^3.2.2",
-    "axios": "^1.6.2",
-    "cheerio": "^1.0.0-rc.10",
     "fs": "0.0.2",
-    "got": "^11.8.3",
-    "iconv-lite": "^0.6.3",
     "knex": "^0.95.15",
     "moment": "^2.29.1",
     "mysql2": "^2.3.3",
     "path": "^0.12.7",
-    "puppeteer": "^21.5.2",
-    "superagent": "^8.1.2"
+    "puppeteer": "^21.5.2"
   }
 }

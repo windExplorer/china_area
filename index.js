@@ -1,6 +1,6 @@
 const com = require("./com");
+const puppeteer = require("puppeteer");
 const conf = require("./config");
-const cheerio = require("cheerio");
 
 const knex = require("knex")({
   client: "mysql2",
@@ -9,74 +9,296 @@ const knex = require("knex")({
 });
 
 const TB = conf.TB;
-
-// const HOME_URL = "http://www.stats.gov.cn/sj/";
-
-// const BASE = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/";
-const BASE = "http://www.stats.gov.cn";
-
-// 获取命令行参数：0 1 [2 3] (node index.js)
-// 命令: node
-// 第一个参数: index.js
-
-// 场景一（默认场景）
-/* 
-    [选填]第二个参数(数字): 采集级别，默认3级。一般是3级[省市区]，最高5级
-    [选填]第三个参数: 显示url地址，默认2: false, 可选1
-*/
-
-// 场景二（该场景的前提是场景一采集完毕）
-/* 
-    [选填]第二个参数(tree): 生成树形结构，是数据库中采集的数据转换成树。目前暂不支持选择级别，默认就是数据库中存在的。
-    [选填]第三个参数(json): 生成文件格式，默认是json，可选js, json
-*/
 const argv = process.argv;
-//console.log(argv)
-const ERR_LOG = com.ERR_LOG;
-let total = 0,
-  count = 0,
-  domain = "",
-  re_try = conf.RE_TRY || 5,
-  end_level = argv[2] || 3,
-  show_link = argv[3] || 2,
-  exportFile = "";
-if ("tree" === end_level) {
-  if (!["json", "js"].includes(show_link)) {
-    show_link = "json";
+const endLevel = com.int(argv[2] || 3);
+let browser;
+let MENU = [];
+let TIME_S;
+let COUNT = 0;
+// 等级和classname映射表
+const LEVEL_MAP = {
+  1: ".provincetable a",
+  2: ".citytr",
+  3: ".countytr",
+  4: ".towntr",
+  5: ".villagetr",
+};
+// 循环检测class
+const LOOP_CHECK_CLASS = [LEVEL_MAP[3], LEVEL_MAP[4], LEVEL_MAP[5]];
+const LEVEL_STR = {
+  1: "省",
+  2: "市",
+  3: "区/县",
+  4: "镇/街道",
+  5: "村/社区",
+};
+
+const URL = `https://www.stats.gov.cn/sj/`;
+
+(async () => {
+  TIME_S = +new Date();
+  com.elog(
+    `###### 开始采集: 采集最终等级LV${endLevel}-【${LEVEL_STR[endLevel]}】`
+  );
+  await checkDB();
+  // ...
+  browser = await puppeteer.launch({
+    headless: "new",
+    slowMo: 100,
+    defaultViewport: { width: 960, height: 540 },
+  });
+  const page = await browser.newPage();
+  com.elog(`## 获取最新数据链接...`);
+  await page.goto(URL, { waitUntil: "networkidle0" });
+  const res = await page.evaluate(() => {
+    const ele = document.querySelector(".qhdm-year a");
+    if (ele) {
+      return {
+        year: ele.innerText,
+        url: ele.href,
+      };
+    }
+    return null;
+  });
+  if (!res) {
+    com.elog(`## 没有获取到最新链接`);
+    await end();
   }
-  exportFile = `${TB}.${show_link}`;
-  exp();
-} else {
-  end_level = com.int(end_level);
-  show_link = show_link == 1 ? true : false;
-  start();
+  await page.close();
+  const { year, url } = res;
+  com.elog(`## 最新划分[${year}]`);
+  // 采集目录页
+  elog("目录", 1, "开始采集...", url);
+  const page2 = await browser.newPage();
+  await page2.goto(url, { waitUntil: "networkidle0" });
+  const res2 = await page2.evaluate((LEVEL_MAP) => {
+    const eles = document.querySelectorAll(LEVEL_MAP[1]);
+    if (eles.length > 0) {
+      const arr = [];
+      eles.forEach((e) => {
+        arr.push({
+          code: "",
+          level: 1,
+          name: e.innerText.replace(/\n/g, ""),
+          url: e.href,
+        });
+      });
+      return arr;
+    }
+    return null;
+  }, LEVEL_MAP);
+  if (!res2) {
+    elog("目录", 1, `没采集到目录`);
+    await end();
+  }
+  await page2.close();
+  elog("目录", 1, `采集成功，共计${res2.length}条数据`);
+  // 开始写数据库
+  MENU = await writeDB(res2, 0);
+  // 判断最终级别
+  if (endLevel === 1) {
+    await end();
+  }
+  await step2();
+  await end();
+})();
+
+// 采集二级
+async function step2() {
+  const LV = 2;
+  // 按省份采集
+  for (let i = 0; i < MENU.length; i++) {
+    const { name, url, id } = MENU[i];
+    elog(name, LV, "开始采集", url);
+    let res = await grabCom(url, [LEVEL_MAP[2]]);
+    if (!res) {
+      elog(name, LV, "没采集到数据，跳过");
+      continue;
+    }
+    res = res.map((v) => ({ ...v, level: LV }));
+    if (conf.NO_ZX) {
+      const arr2 = res.filter((v) => v.name.includes("直辖"));
+      if (arr2.length > 0) {
+        elog(name, LV, "提权【直辖】数据");
+        // 提权 省直辖县级行政区划 内数据, 筛选出 直辖 相关的，直接采集到数据进行填充
+        const res2 = await step2_2(arr2, 2);
+        elog(name, LV, `提权【直辖】数据完毕，共${res2.length}条`);
+        res = res.filter((v) => !v.name.includes("直辖"));
+        res = [...res, ...res2];
+      }
+    }
+    const res2 = await writeDB(res, id);
+    elog(name, LV, `下级数据（${LEVEL_STR[LV]}）写入完毕，共${res2.length}条`);
+    if (endLevel <= 2) {
+      elog(name, LV, `采集级别设置为2，不进行后续级别采集`);
+      continue;
+    }
+    // 如果是采集高于2级，继续采集后续等级
+    await step3(res2, 3);
+    elog(name, LV, "采集完毕");
+  }
 }
 
-// 生成文件
-async function exp() {
-  let hasTab = await knex.schema.hasTable(TB);
-  if (!hasTab) {
-    com.elog(`## 表不存在`);
-    knex.destroy();
-    return;
+// - 从这里开始自适应class - 通用采集 - 返回每次采集的数组
+async function step2_2(list = [], level = 2) {
+  const arr = [];
+  // 通用采集
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+    if (!v.href) {
+      continue;
+    }
+    elog(v.name, level, `开始采集`);
+    let res = await grabCom(v.href);
+    if (res) {
+      arr.push(...res.map((v) => ({ ...v, level })));
+    }
   }
-  const sourceList = await knex.select().from(TB);
-  let list = com.generatTree2(sourceList);
-  switch (show_link) {
-    case "js":
-      com.wFile(exportFile, `const areaList = ${JSON.stringify(list)}`);
-      break;
-    default:
-      com.wFile(exportFile, JSON.stringify(list));
-  }
-  knex.destroy();
+  return arr;
 }
 
-// 采集数据
-async function start() {
+// 3 - 4 - 5级 递归采集
+async function step3(list = [], level = 3) {
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+
+    // com.elog(`## [LV${level}]正在采集 ${v.name}: ${v.href}`);
+    elog(v.name, level, `开始采集`, v.href);
+    if (!v.href) {
+      // com.elog(`## [LV${level}]采集地址为空，跳过`);
+      elog(v.name, level, `采集地址为空，跳过`);
+      continue;
+    }
+    let res = await grabCom(v.href);
+    if (!res) {
+      // com.elog(`## [LV${level}]没有采集到数据，跳过`);
+      elog(v.name, level, `没有采集到数据，跳过`);
+      continue;
+    }
+    res = res.map((v) => ({ ...v, level }));
+    const res2 = await writeDB(res, v.id);
+    // com.elog(
+    //   `## [LV${level}]【${v.name}】下${LEVEL_STR[level]}写入数据库完毕，共${res2.length}条`
+    // );
+    elog(
+      v.name,
+      level,
+      `下级数据（${LEVEL_STR[level]}）写入完毕，共${res2.length}条`
+    );
+    if (endLevel <= level) {
+      // com.elog(`## 采集级别设置为${level}，不进行后续级别采集`);
+      elog(v.name, level, `采集级别设置为${level}，不进行后续级别采集`);
+      continue;
+    }
+    // 如果是采集高于当前等级，继续采集下一级
+    if (level < 5) {
+      await step3(res2, level + 1);
+    }
+    elog(v.name, level, `采集完毕`);
+  }
+}
+
+// 通用采集函数
+async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
+  const page = await browser.newPage();
+  await page.goto(U, { waitUntil: "domcontentloaded" });
+  let res = await page.evaluate((CLASSES) => {
+    // 循环检测类型
+    let eles;
+    for (let i = 0; i < CLASSES.length; i++) {
+      eles = document.querySelectorAll(CLASSES[i]);
+      if (eles && eles.length > 0) {
+        break;
+      }
+    }
+    if (eles.length > 0) {
+      const arr = [];
+      eles.forEach((ele) => {
+        const as = ele.querySelectorAll("a");
+        const tds = ele.querySelectorAll("td");
+        if (as && as.length > 0) {
+          arr.push({
+            code: as[0].innerText,
+            href: as[0].href,
+            name: as[1].innerText,
+            // level: 2,
+          });
+        } else {
+          arr.push({
+            code: tds[0].innerText,
+            href: "",
+            name: tds[1].innerText,
+            // level: 2,
+          });
+        }
+      });
+      return arr.length > 0 ? arr : null;
+    }
+    return null;
+  }, CLASSES);
+  return res;
+}
+
+// 写数据库 后续：怕有重名的数据，这里使用单条数据写入
+async function writeDB_Alone(v, pid = 0) {
+  return await knex(TB).insert({
+    pid,
+    code: v.code,
+    name: v.name,
+    level: v.level,
+  });
+}
+
+// 写数据库 - 用循环单个插入，返回带id的数组
+async function writeDB(list = [], pid = 0) {
+  for (let i = 0; i < list.length; i++) {
+    list[i] = {
+      ...list[i],
+      id: (await writeDB_Alone(list[i], pid))[0],
+    };
+  }
+  // 此处新增采集数量
+  COUNT += list.length;
+  return list;
+}
+
+async function close() {
+  browser && (await browser.close());
+  knex && (await knex.destroy());
+}
+
+// 结束
+async function end() {
+  await close();
+  com.elog(
+    `###### 采集完毕，共${COUNT}条数据， 耗时: ${(
+      (+new Date() - TIME_S) /
+      1000
+    ).toFixed(2)}s`
+  );
+  process.exit();
+}
+
+// 输出格式化
+function elog(name = "", level = "", str = "", link = "") {
+  let s = `##[已采集: ${COUNT}]## 正在采集*[LV${level}]【${name}】*${str}`;
+  if (conf.SHOW_LINK && link) {
+    s += ` 目标地址: ${link}`;
+  }
+  com.elog(s);
+}
+
+async function checkDB() {
   let flag = true;
   // 判断是否存在数据库
-  let hasTab = await knex.schema.hasTable(TB);
+  com.elog(`## 检测数据库配置...`);
+  let hasTab;
+  try {
+    hasTab = await knex.schema.hasTable(TB);
+  } catch (e) {
+    com.elog(`## 数据库检测失败!`);
+    await end();
+  }
   if (!hasTab) {
     // 创建数据库表
     let sql =
@@ -91,243 +313,13 @@ async function start() {
       "  `level` tinyint(2) NULL DEFAULT 0 COMMENT '级别'," +
       "  PRIMARY KEY (`id`) USING BTREE" +
       ") ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;";
-
-    let createTab = await knex.schema.raw(sql).catch((e) => {
+    await knex.schema.raw(sql).catch(async (e) => {
       console.log(e.toString());
       com.elog(`## 表创建失败`);
-      flag = false;
+      await end();
     });
-    if (!createTab) {
-      com.elog(`## 表创建失败`);
-      flag = false;
-    }
-    if (!flag) {
-      knex.destroy();
-      return;
-    }
-    com.elog(`表${TB}创建成功`);
+    com.elog(`## 表${TB}创建成功`);
+  } else {
+    com.elog(`## 数据库检测通过`);
   }
-  // 获取最新的链接
-  const home_url = `${BASE}/sj/`;
-  let res = await com.req(home_url);
-  return;
-  //let body = iconv.decode(res.rawBody, 'utf8').toString()
-  let body = res.body;
-  if (!body) {
-    com.elog(`## 没有获取到数据 ${home_url}`);
-    knex.destroy();
-    return;
-  }
-  let $ = cheerio.load(body);
-  let a = $(".qhdm-year a:eq(0)");
-  let url = a.attr("href");
-  let year = com.trim(a.text());
-  if (!url) {
-    com.elog(`## 没有获取到最新链接`);
-    knex.destroy();
-    return;
-  }
-  // url = BASE + url
-  com.elog(`## 最新划分[${year}] ${url}`);
-  // 正式开始采集
-  await step2(url);
-
-  knex.destroy();
-}
-
-async function step2(u) {
-  let time_s = +new Date(),
-    d = await com.req_iconv(u, conf.CHARSET),
-    u0 = u.split("/");
-  u0[u0.length - 1] = "";
-  u0 = u0.join("/");
-  domain = u0;
-  if (!d) {
-    com.elog("### 请求出错，退出作业");
-    return false;
-  }
-  let $ = cheerio.load(d),
-    res = $(".provincetr a");
-  if (res.length == 0) {
-    com.elog(`### 没有找到数据`);
-    return false;
-  }
-  total += res.length;
-  for (let i = 0; i < res.length; i++) {
-    let grab_time_s = +new Date();
-    let dom = $(res[i]),
-      name = dom.text(),
-      link_str = dom.attr("href").split(".")[0] + "/",
-      link = u0 + dom.attr("href");
-    let data = {
-      pid: 0,
-      code: "",
-      name: name,
-      level: 1,
-    };
-    console.log();
-    console.log();
-    com.elog(`#### [${count}/${total}] 正在采集 ${name}`);
-    let id = await knex(TB).insert(data);
-    count += 1;
-    // console.log(id)
-    if (id > 0) {
-      com.elog(`#### 开始插入 ${name} 数据: `);
-      let ret = await grab(id, link, 2, link_str);
-      com.elog(`##################### ${ret}`);
-    }
-    com.elog(
-      `#### ${name} 采集完毕 耗时: ${(
-        (+new Date() - grab_time_s) /
-        1000
-      ).toFixed(2)}s`
-    );
-  }
-  com.elog(
-    `##### 全部采集完毕，共采集[${count}/${total}] 耗时: ${(
-      (+new Date() - time_s) /
-      1000
-    ).toFixed(2)}s`
-  );
-  return true;
-}
-
-function grab(pid, link, level, link_str) {
-  return new Promise((resolve, reject) => {
-    (async () => {
-      //await com.sleep(1500)
-      let tag = "citytr",
-        lv = 2,
-        u_str = link_str;
-      if (level == 2) {
-        lv = 2;
-        u_str = "";
-      }
-      if (level == 3) {
-        tag = "countytr";
-        lv = 3;
-      } else if (level == 4) {
-        tag = "towntr";
-        lv = 4;
-      } else if (level == 5) {
-        tag = "villagetr";
-        lv = 5;
-      }
-      let d, $, res;
-      //console.log(`link_Str: ${u_str}  level: ${level}  length: ${res.length} url: ${link}`)
-      //console.log(link)
-      //console.log(res.length + `[${link}]`)
-      let sec = 0;
-      for (let i = 0; i <= re_try; i++) {
-        let tmp_d = await com.req_iconv(link, conf.CHARSET);
-        if (!tmp_d) {
-          if (i < re_try) {
-            sec += 10;
-            com.elog(`###### 没有数据，${sec}秒后进行第${i + 1}次重试`);
-            await com.sleep(sec * 1000);
-            continue;
-          }
-        }
-        let tmp_$ = cheerio.load(tmp_d),
-          tmp_res = tmp_$(`.${tag}`);
-
-        if (tmp_res.length == 0) {
-          tag = "towntr";
-          tmp_res = tmp_$(`.${tag}`);
-          if (tmp_res.length == 0) {
-            tag = "villagetr";
-            tmp_res = tmp_$(`.${tag}`);
-          }
-        }
-        d = tmp_d;
-        $ = tmp_$;
-        res = tmp_res;
-        break;
-      }
-      if (res.length == 0) {
-        com.elog(`重试结束，但仍然失败: ${link}  => no result\r\n`);
-        // 写日志
-        com.wFile(
-          ERR_LOG,
-          `重试结束，但仍然失败: ${link}  => no result\r\n`,
-          "a"
-        );
-        resolve("no result");
-      }
-
-      total += res.length;
-      for (let i = 0; i < res.length; i++) {
-        let dom = $(res[i]),
-          td = dom.find("td"),
-          a = dom.find("a"),
-          str = u_str;
-        //console.log(td.length)
-        if (a.length == 0) {
-          let code = td.eq(0).text();
-          let data = {
-            pid: pid,
-            code: conf.SHORT_CODE && end_level <= 3 ? com.str_cut(code) : code,
-            name: td.eq(1).text(),
-            level: lv,
-          };
-          if (td.length == 3) {
-            data.code2 = data.name;
-            data.name = td.eq(2).text();
-          }
-          //console.log(data)
-          com.elog(
-            `### [${count}/${total}] 正在采集1 ${data.name} [${
-              show_link ? link : "*_*"
-            }]`
-          );
-          let ret_pid = await knex(TB).insert(data);
-          count += 1;
-          //resolve(ret_pid)
-          continue;
-        } else {
-          let code = a.eq(0).text();
-          let data = {
-            pid: pid,
-            code: conf.SHORT_CODE && end_level <= 3 ? com.str_cut(code) : code,
-            name: a.eq(1).text(),
-            level: lv,
-          };
-          if (td.length == 3) {
-            data.code2 = data.name;
-            data.name = a.eq(2).text();
-          }
-          //console.log(data)
-          com.elog(
-            `### [${count}/${total}] 正在采集2 ${data.name} [${
-              show_link ? link : "*_*"
-            }]`
-          );
-          let ret_pid = await knex(TB).insert(data);
-          count += 1;
-          if (lv >= end_level) {
-            continue;
-          }
-          // 继续遍历
-          let u = a.eq(0).attr("href");
-          if (u) {
-            link = domain + str + u;
-            //console.log(link)
-            // console.log(`继续遍历: ${link}`, a.attr("href"));
-            str = u_str + u.split("/")[0] + "/";
-            await grab(ret_pid, link, lv + 1, str);
-          } else {
-            com.elog(
-              `### [${count}/${total}] 没有了2 ${data.name} [${
-                show_link ? link : "*_*"
-              }]`
-            );
-          }
-        }
-      }
-
-      resolve("grab section end");
-    })(pid, link, level, link_str);
-
-    //return 'success'
-  });
 }
