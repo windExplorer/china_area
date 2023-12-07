@@ -44,7 +44,7 @@ const URL = `https://www.stats.gov.cn/sj/`;
   // ...
   browser = await puppeteer.launch({
     headless: "new",
-    // slowMo: 100,
+    // slowMo: 100, // 慢速采集
     // defaultViewport: { width: 960, height: 540 },
   });
   const page = await browser.newPage();
@@ -80,7 +80,7 @@ const URL = `https://www.stats.gov.cn/sj/`;
           code: "",
           level: 1,
           name: e.innerText.replace(/\n/g, ""),
-          url: e.href,
+          href: e.href,
         });
       });
       return arr;
@@ -92,7 +92,7 @@ const URL = `https://www.stats.gov.cn/sj/`;
     await end();
   }
   await page2.close();
-  elog("目录", 1, `采集成功，共计${res2.length}条数据`);
+  elog("目录", 1, `采集成功, 共计${res2.length}条数据`);
   // 开始写数据库
   MENU = await writeDB(res2, 0);
   // 判断最终级别
@@ -109,11 +109,11 @@ async function step2() {
   const LV = 2;
   // 按省份采集
   for (let i = 0; i < MENU.length; i++) {
-    const { name, url, id } = MENU[i];
-    elog(name, LV, "开始采集", url);
-    let res = await grabCom(url, [LEVEL_MAP[2]]);
+    const { name, href, id } = MENU[i];
+    elog(name, LV, "开始采集", href);
+    let res = await grabCom(href, [LEVEL_MAP[2]]);
     if (!res) {
-      elog(name, LV, "没采集到数据，跳过");
+      elog(name, LV, "没采集到数据, 跳过");
       continue;
     }
     res = res.map((v) => ({ ...v, level: LV }));
@@ -121,20 +121,20 @@ async function step2() {
       const arr2 = res.filter((v) => v.name.includes("直辖"));
       if (arr2.length > 0) {
         elog(name, LV, "提权【直辖】数据");
-        // 提权 省直辖县级行政区划 内数据, 筛选出 直辖 相关的，直接采集到数据进行填充
+        // 提权 省直辖县级行政区划 内数据, 筛选出 直辖 相关的, 直接采集到数据进行填充
         const res2 = await step2_2(arr2, 2);
-        elog(name, LV, `提权【直辖】数据完毕，共${res2.length}条`);
+        elog(name, LV, `提权【直辖】数据完毕, 共${res2.length}条`);
         res = res.filter((v) => !v.name.includes("直辖"));
         res = [...res, ...res2];
       }
     }
     const res2 = await writeDB(res, id);
-    elog(name, LV, `下级数据（${LEVEL_STR[LV]}）写入完毕，共${res2.length}条`);
+    elog(name, LV, `下级数据（${LEVEL_STR[LV]}）写入完毕, 共${res2.length}条`);
     if (endLevel <= 2) {
-      elog(name, LV, `采集级别设置为2，不进行后续级别采集`);
+      elog(name, LV, `采集级别设置为2, 不进行后续级别采集`);
       continue;
     }
-    // 如果是采集高于2级，继续采集后续等级
+    // 如果是采集高于2级, 继续采集后续等级
     await step3(res2, 3);
     elog(name, LV, "采集完毕");
   }
@@ -166,32 +166,32 @@ async function step3(list = [], level = 3) {
     // com.elog(`## [LV${level}]正在采集 ${v.name}: ${v.href}`);
     elog(v.name, level, `开始采集`, v.href);
     if (!v.href) {
-      // com.elog(`## [LV${level}]采集地址为空，跳过`);
-      elog(v.name, level, `采集地址为空，跳过`);
+      // com.elog(`## [LV${level}]采集地址为空, 跳过`);
+      elog(v.name, level, `采集地址为空, 跳过`);
       continue;
     }
     let res = await grabCom(v.href);
     if (!res) {
-      // com.elog(`## [LV${level}]没有采集到数据，跳过`);
-      elog(v.name, level, `没有采集到数据，跳过`);
+      // com.elog(`## [LV${level}]没有采集到数据, 跳过`);
+      elog(v.name, level, `没有采集到数据, 跳过`);
       continue;
     }
     res = res.map((v) => ({ ...v, level }));
     const res2 = await writeDB(res, v.id);
     // com.elog(
-    //   `## [LV${level}]【${v.name}】下${LEVEL_STR[level]}写入数据库完毕，共${res2.length}条`
+    //   `## [LV${level}]【${v.name}】下${LEVEL_STR[level]}写入数据库完毕, 共${res2.length}条`
     // );
     elog(
       v.name,
       level,
-      `下级数据（${LEVEL_STR[level]}）写入完毕，共${res2.length}条`
+      `下级数据（${LEVEL_STR[level]}）写入完毕, 共${res2.length}条`
     );
     if (endLevel <= level) {
-      // com.elog(`## 采集级别设置为${level}，不进行后续级别采集`);
-      elog(v.name, level, `采集级别设置为${level}，不进行后续级别采集`);
+      // com.elog(`## 采集级别设置为${level}, 不进行后续级别采集`);
+      elog(v.name, level, `采集级别设置为${level}, 不进行后续级别采集`);
       continue;
     }
-    // 如果是采集高于当前等级，继续采集下一级
+    // 如果是采集高于当前等级, 继续采集下一级
     if (level < 5) {
       await step3(res2, level + 1);
     }
@@ -249,7 +249,7 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
       elog(
         "通用采集",
         -1,
-        `页面请求失败，正在进行第${attempts + 1}重试 错误信息: ${err?.message}`,
+        `页面请求失败, 正在进行第${attempts + 1}重试 错误信息: ${err?.message}`,
         U
       );
       await new Promise((resolve) =>
@@ -263,23 +263,24 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
   elog(
     "通用采集",
     -1,
-    `页面请求失败，已重试${attempts}次，终止重试，终止采集，最后一次错误信息: ${err?.message}`,
+    `页面请求失败, 已重试${attempts}次, 终止重试, 终止采集, 最后一次错误信息: ${err?.message}`,
     U
   );
   await end();
 }
 
-// 写数据库 后续：怕有重名的数据，这里使用单条数据写入
+// 写数据库 后续：怕有重名的数据, 这里使用单条数据写入
 async function writeDB_Alone(v, pid = 0) {
   return await knex(TB).insert({
     pid,
     code: v.code,
     name: v.name,
     level: v.level,
+    url: v?.href ?? "",
   });
 }
 
-// 写数据库 - 用循环单个插入，返回带id的数组
+// 写数据库 - 用循环单个插入, 返回带id的数组
 async function writeDB(list = [], pid = 0) {
   for (let i = 0; i < list.length; i++) {
     list[i] = {
@@ -301,7 +302,7 @@ async function close() {
 async function end() {
   await close();
   com.elog(
-    `###### 采集完毕，共${COUNT}条数据， 耗时: ${(
+    `###### 采集完毕, 共${COUNT}条数据,  耗时: ${(
       (+new Date() - TIME_S) /
       1000
     ).toFixed(2)}s`
@@ -338,9 +339,9 @@ async function checkDB() {
       "  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '编号'," +
       "  `pid` bigint(20) NULL DEFAULT 0 COMMENT '父节点'," +
       "  `code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '统计用区划代码'," +
-      "  `code2` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '城乡分类代码'," +
       "  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '名称'," +
       "  `level` tinyint(2) NULL DEFAULT 0 COMMENT '级别'," +
+      "  `url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '链接'," +
       "  PRIMARY KEY (`id`) USING BTREE" +
       ") ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;";
     await knex.schema.raw(sql).catch(async (e) => {
@@ -350,6 +351,8 @@ async function checkDB() {
     });
     com.elog(`## 表${TB}创建成功`);
   } else {
-    com.elog(`## 数据库检测通过`);
+    // 这里判断表已经存在，获取表中的数据并且接着最后的数据继续采集
+
+    com.elog(`## 表${TB}已存在, 检测通过, 继续采集`);
   }
 }
