@@ -43,9 +43,9 @@ const URL = `https://www.stats.gov.cn/sj/`;
   await checkDB();
   // ...
   browser = await puppeteer.launch({
-    headless: true,
-    slowMo: 100,
-    defaultViewport: { width: 960, height: 540 },
+    headless: "new",
+    // slowMo: 100,
+    // defaultViewport: { width: 960, height: 540 },
   });
   const page = await browser.newPage();
   com.elog(`## 获取最新数据链接...`);
