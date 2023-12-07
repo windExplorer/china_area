@@ -192,7 +192,7 @@ module.exports = {
           (v.children = []) && v // 如果最后一条不加children就直接v
         );
       } else {
-        arr.push(v);
+        arr.push({...v, children: v?.children ?? []});
       }
     });
     return arr;

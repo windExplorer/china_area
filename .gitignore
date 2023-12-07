@@ -6,3 +6,4 @@ v0/node_modules
 yarn.lock
 log/*
 package-lock.json
+tmp/*

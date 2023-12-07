@@ -40,88 +40,81 @@ const URL = `https://www.stats.gov.cn/sj/`;
   com.elog(
     `###### 开始采集: 采集最终等级LV${endLevel}-【${LEVEL_STR[endLevel]}】`
   );
-  const cdb = await checkDB();
+  await checkDB();
   // ...
   browser = await puppeteer.launch({
     headless: "new",
-    // slowMo: 100, // 慢速采集
+    slowMo: 0,
     // defaultViewport: { width: 960, height: 540 },
   });
-  if(!cdb) {
-    // 如果数据库存在数据，就增量采集
-    await ContinueStep();
-  } else {
-    const page = await browser.newPage();
-    com.elog(`## 获取最新数据链接...`);
-    await page.goto(URL, { waitUntil: "networkidle0" });
-    const res = await page.evaluate(() => {
-      const ele = document.querySelector(".qhdm-year a");
-      if (ele) {
-        return {
-          year: ele.innerText,
-          url: ele.href,
-        };
-      }
-      return null;
-    });
-    if (!res) {
-      com.elog(`## 没有获取到最新链接`);
-      await end();
+  const page = await browser.newPage();
+  com.elog(`## 获取最新数据链接...`);
+  await page.goto(URL, { waitUntil: "networkidle0" });
+  const res = await page.evaluate(() => {
+    const ele = document.querySelector(".qhdm-year a");
+    if (ele) {
+      return {
+        year: ele.innerText,
+        url: ele.href,
+      };
     }
-    await page.close();
-    const { year, url } = res;
-    com.elog(`## 最新划分[${year}]`);
-    // 采集目录页
-    elog("目录", 1, "开始采集...", url);
-    const page2 = await browser.newPage();
-    await page2.goto(url, { waitUntil: "networkidle0" });
-    const res2 = await page2.evaluate((LEVEL_MAP) => {
-      const eles = document.querySelectorAll(LEVEL_MAP[1]);
-      if (eles.length > 0) {
-        const arr = [];
-        eles.forEach((e) => {
-          arr.push({
-            code: "",
-            level: 1,
-            name: e.innerText.replace(/\n/g, ""),
-            href: e.href,
-          });
-        });
-        return arr;
-      }
-      return null;
-    }, LEVEL_MAP);
-    if (!res2) {
-      elog("目录", 1, `没采集到目录`);
-      await end();
-    }
-    await page2.close();
-    elog("目录", 1, `采集成功, 共计${res2.length}条数据`);
-    // 开始写数据库
-    MENU = await writeDB(res2, 0);
-    // 判断最终级别
-    if (endLevel === 1) {
-      await end();
-    }
-    for (let i = 0; i < MENU.length; i++) {
-      await step2(MENU[i]);
-    }
+    return null;
+  });
+  if (!res) {
+    com.elog(`## 没有获取到最新链接`);
+    await end();
   }
-  
+  await page.close();
+  const { year, url } = res;
+  com.elog(`## 最新划分[${year}]`);
+  // 采集目录页
+  elog("目录", 1, "开始采集...", url);
+  const page2 = await browser.newPage();
+  await page2.goto(url, { waitUntil: "networkidle0" });
+  const res2 = await page2.evaluate((LEVEL_MAP) => {
+    const eles = document.querySelectorAll(LEVEL_MAP[1]);
+    if (eles.length > 0) {
+      const arr = [];
+      eles.forEach((e) => {
+        arr.push({
+          code: "",
+          level: 1,
+          name: e.innerText.replace(/\n/g, ""),
+          href: e.href,
+        });
+      });
+      return arr;
+    }
+    return null;
+  }, LEVEL_MAP);
+  if (!res2) {
+    elog("目录", 1, `没采集到目录`);
+    await end();
+  }
+  await page2.close();
+  elog("目录", 1, `采集成功, 共计${res2.length}条数据`);
+  // 开始写数据库
+  MENU = await writeDB(res2, 0);
+  // 判断最终级别
+  if (endLevel === 1) {
+    await end();
+  }
+  await step2();
   await end();
   return;
 })();
 
 // 采集二级
-async function step2(row) {
+async function step2() {
   const LV = 2;
   // 按省份采集
-  const { name, href, id } = row;
+  for (let i = 0; i < MENU.length; i++) {
+    const { name, href, id } = MENU[i];
     elog(name, LV, "开始采集", href);
     let res = await grabCom(href, [LEVEL_MAP[2]]);
     if (!res) {
       elog(name, LV, "没采集到数据, 跳过");
-      return
+      continue;
     }
     res = res.map((v) => ({ ...v, level: LV }));
     if (conf.NO_ZX) {
@@ -139,12 +132,12 @@ async function step2(row) {
     elog(name, LV, `下级数据（${LEVEL_STR[LV]}）写入完毕, 共${res2.length}条`);
     if (endLevel <= 2) {
       elog(name, LV, `采集级别设置为2, 不进行后续级别采集`);
-      return
+      continue;
     }
     // 如果是采集高于2级, 继续采集后续等级
     await step3(res2, 3);
     elog(name, LV, "采集完毕");
-  
+  }
 }
 
 // - 从这里开始自适应class - 通用采集 - 返回每次采集的数组
@@ -255,7 +248,7 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
       // console.error(`Attempt ${attempts + 1} failed: ${error.message}`);
       elog(
         "通用采集",
-        0,
+        -1,
         `页面请求失败, 正在进行第${attempts + 1}重试 错误信息: ${err?.message}`,
         U
       );
@@ -275,77 +268,6 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
   );
   await end();
 }
-
-// 断点续采 - 这个断点续采只针对同级别，后续再开发不限制级别的续采
-async function ContinueStep() {
-  // 从数据库获取所有记录
-  let records = await knex(TB).select();
-  COUNT = records.length
-  records = records.map(v => ({...v, href: v.url}))
-  // 获取最后一条数据的所有层级数据
-  let last = records[records.length - 1];
-  let count = 0
-  let arr = [last]
-  let ids = [last.id]
-  while(count < 5) {
-    count ++
-    // 找pid
-    const row = records.find((item) => item.id === last.pid);
-    if(row) {
-      last = row
-      arr.push(last)
-      ids.push(last.id)
-    } else {
-      break
-    }
-  }
-  arr.reverse()
-  ids.reverse()
-  // console.log(ids)
-  // 将数据转换成树状结构
-  const tree = com.generatTree2(records)
-  // await com.wFile('./tmp/tmp-0.json', JSON.stringify(tree.map((item) => ({...item, children: []}))));
-  // 写入缓存文件，测试用
-  // await com.wFile('./tmp/tmp.json', JSON.stringify(tree));
-  // 通过递归循环遍历树状结构
-  await ContinueRecursion(tree, arr)
-}
-
-// 递归断点续采
-async function ContinueRecursion(tree, arr = []) { 
-  for(let i = 0; i < tree.length; i++) {
-    const row = tree[i]
-    const focus = arr?.[row.level - 1] ?? null
-    if(focus && focus.id) {
-      // 如果当前层级中存在数据, 就查找
-      if(row.id !== focus.id) {
-        continue;
-      } else {
-        arr[row.level - 1] = null
-      }
-    } 
-    // 判断层级是否是倒数第二层 且children有数据 跳过
-    if(row.level === endLevel - 1 && row.children.length > 0) {
-      // 如果最后一层有数据，表示已采集到最后一层了
-      continue
-    }
-    if(row.level === endLevel) {
-      // 如果当前层是最后一层
-      continue
-    }
-    if(row.children.length > 0) {
-      await ContinueRecursion(row.children, arr)
-    } else {
-      if(row.level === 1) {
-        await step2(row)
-      } else {
-        // 大于2级
-        await step3(row.children, row.level + 1)
-      }
-    }
-  }
-}
-
 
 // 写数据库 后续：怕有重名的数据, 这里使用单条数据写入
 async function writeDB_Alone(v, pid = 0) {
@@ -430,12 +352,7 @@ async function checkDB() {
     com.elog(`## 表${TB}创建成功`);
   } else {
     // 这里判断表已经存在，获取表中的数据并且接着最后的数据继续采集
-    const count = await knex(TB).count('id as total');
-    // console.log(count[0].total);
-    if (count[0].total > 0) { 
-      flag = false;
-    }
+
     com.elog(`## 表${TB}已存在, 检测通过, 继续采集`);
   }
-  return flag;
 }
