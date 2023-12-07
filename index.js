@@ -43,7 +43,7 @@ const URL = `https://www.stats.gov.cn/sj/`;
   await checkDB();
   // ...
   browser = await puppeteer.launch({
-    headless: "new",
+    headless: true,
     slowMo: 100,
     defaultViewport: { width: 960, height: 540 },
   });
@@ -101,6 +101,7 @@ const URL = `https://www.stats.gov.cn/sj/`;
   }
   await step2();
   await end();
+  return;
 })();
 
 // 采集二级
