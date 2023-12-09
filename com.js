@@ -189,10 +189,10 @@ module.exports = {
     list.map((v) => {
       if (dict[v.pid]) {
         (dict[v.pid].children || (dict[v.pid].children = [])).push(
-          (v.children = []) && v // 如果最后一条不加children就直接v
+          (v.children = []) && v // 如果最后一条不加children就直接
         );
       } else {
-        arr.push({...v, children: v?.children ?? []});
+        arr.push(v);
       }
     });
     return arr;

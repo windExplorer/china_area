@@ -24,7 +24,7 @@ const LEVEL_MAP = {
   5: ".villagetr",
 };
 // 循环检测class
-const LOOP_CHECK_CLASS = [LEVEL_MAP[3], LEVEL_MAP[4], LEVEL_MAP[5]];
+const LOOP_CHECK_CLASS = [LEVEL_MAP[2], LEVEL_MAP[3], LEVEL_MAP[4], LEVEL_MAP[5]];
 const LEVEL_STR = {
   1: "省",
   2: "市",
@@ -32,6 +32,11 @@ const LEVEL_STR = {
   4: "镇/街道",
   5: "村/社区",
 };
+
+// 最后的层级
+let LAST_DATA = []
+let LAST_DATA_IDS = []
+let ContinueFlag = false
 
 const URL = `https://www.stats.gov.cn/sj/`;
 
@@ -301,54 +306,66 @@ async function ContinueStep() {
   }
   arr.reverse()
   ids.reverse()
+  LAST_DATA = JSON.parse(JSON.stringify(arr))
+  LAST_DATA_IDS = JSON.parse(JSON.stringify(ids))
   // console.log(ids)
   // 将数据转换成树状结构
-  const tree = com.generatTree2(records)
+  const tree = com.generatTree(records)
   // await com.wFile('./tmp/tmp-0.json', JSON.stringify(tree.map((item) => ({...item, children: []}))));
   // 写入缓存文件，测试用
-  // await com.wFile('./tmp/tmp.json', JSON.stringify(tree));
+  await com.wFile('./tmp/tmp.json', JSON.stringify(tree));
   // 通过递归循环遍历树状结构
-  await ContinueRecursion(tree, arr)
+  await ContinueRecursion(tree)
 }
 
 // 递归断点续采
-async function ContinueRecursion(tree, arr = []) { 
+async function ContinueRecursion(tree) { 
+  // 因为是递归，正常进行采集，判断层级和子集
   for(let i = 0; i < tree.length; i++) {
     const row = tree[i]
-    const focus = arr?.[row.level - 1] ?? null
-    if(focus && focus.id) {
-      // 如果当前层级中存在数据, 就查找
-      if(row.id !== focus.id) {
-        continue;
-      } else {
-        arr[row.level - 1] = null
+    // if(row.name === '山西省') {
+    //   console.log('山西')
+    //   await end()
+    //   return
+    // }
+    // console.log(row.id, row.name, row.level === endLevel -1, row.children.length, LAST_DATA_IDS)
+    await ContinueRecursion(row.children)
+    
+    // 先判断层级
+    // 如果是倒数第二级别，只需要判断子集是否有数据，如果有就退出
+    if(row.level === endLevel - 1) {
+      // elog(row.name, row.level, '续采中', row.href)
+      if(row.children.length > 0) {
+        // 再判断一下id是否在ids里面, 不在就表示采集完成，退出递归
+        if(!LAST_DATA_IDS.includes(row.id)) {
+          continue
+        }
       }
-    } 
-    // 判断层级是否是倒数第二层 且children有数据 跳过
-    if(row.level === endLevel - 1 && row.children.length > 0) {
-      // 如果最后一层有数据，表示已采集到最后一层了
-      continue
-    }
-    if(row.level === endLevel) {
-      // 如果当前层是最后一层
-      continue
-    }
-    if(row.children.length > 0) {
-      await ContinueRecursion(row.children, arr)
+      // 子集没有数据就采集 - 使用通用采集
+      await step3([row], row.level + 1)
+    } else if (row.level < endLevel - 1) {
+      // 如果层级小于倒数第二级别，就判断是否有子集，如果没有就采集，如果有就继续递归子集
+      if(row.children.length === 0) {
+        await step3([row], row.level + 1)
+      } else {
+        await ContinueRecursion(row.children)
+      }
     } else {
-      if(row.level === 1) {
-        await step2(row)
-      } else {
-        // 大于2级
-        await step3(row.children, row.level + 1)
-      }
+      // 如果是最后一级别，直接退出
+      return
     }
   }
 }
 
-
 // 写数据库 后续：怕有重名的数据, 这里使用单条数据写入
 async function writeDB_Alone(v, pid = 0) {
+  if(LAST_DATA_IDS.length && LAST_DATA_IDS.includes(pid)) {
+    // 从数据库查询，有的话就不写入
+    const data = await knex(TB).where({pid, name: v.name}).select();
+    if(data.length > 0) {
+      return data[0]
+    }
+  }
   return await knex(TB).insert({
     pid,
     code: v.code,
@@ -360,6 +377,7 @@ async function writeDB_Alone(v, pid = 0) {
 
 // 写数据库 - 用循环单个插入, 返回带id的数组
 async function writeDB(list = [], pid = 0) {
+  // 断点续采，如果pid是倒数第二级别的id
   for (let i = 0; i < list.length; i++) {
     list[i] = {
       ...list[i],
@@ -417,6 +435,7 @@ async function checkDB() {
       "  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '编号'," +
       "  `pid` bigint(20) NULL DEFAULT 0 COMMENT '父节点'," +
       "  `code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '统计用区划代码'," +
+      "  `code2` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '城乡分类代码'," +
       "  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '名称'," +
       "  `level` tinyint(2) NULL DEFAULT 0 COMMENT '级别'," +
       "  `url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '链接'," +
