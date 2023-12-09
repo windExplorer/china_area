@@ -233,18 +233,33 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
           eles.forEach((ele) => {
             const as = ele.querySelectorAll("a");
             const tds = ele.querySelectorAll("td");
+            let name = '', code2 = ''
             if (as && as.length > 0) {
+              if(as.length === 3) {
+                code2 = as[1].innerText;
+                name = as[2].innerText;
+              } else {
+                name = as[1].innerText
+              }
               arr.push({
                 code: as[0].innerText,
                 href: as[0].href,
-                name: as[1].innerText,
+                name,
+                code2
                 // level: 2,
               });
             } else {
+              if(tds.length === 3) {
+                code2 = tds[1].innerText;
+                name = tds[2].innerText;
+              } else {
+                name = tds[1].innerText
+              }
               arr.push({
                 code: tds[0].innerText,
                 href: "",
-                name: tds[1].innerText,
+                name,
+                code2
                 // level: 2,
               });
             }
@@ -369,6 +384,7 @@ async function writeDB_Alone(v, pid = 0) {
   return await knex(TB).insert({
     pid,
     code: v.code,
+    code2: v?.code2 ?? "",
     name: v.name,
     level: v.level,
     url: v?.href ?? "",
