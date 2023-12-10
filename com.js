@@ -182,15 +182,10 @@ module.exports = {
     return arr;
   },
   // 生成树 - 优质方法
+  // 生成树 - 优质方法
   generatTree2(list = []) {
     let dict = {};
-    list = list.map((v) => {
-      dict[v.id] = v
-      return {
-        ...v,
-        children: []  // 防止第一层没有children
-      }
-    });
+    list.map((v) => (dict[v.id] = v));
     let arr = [];
     list.map((v) => {
       if (dict[v.pid]) {

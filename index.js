@@ -337,6 +337,9 @@ async function ContinueRecursion(tree) {
   // 因为是递归，正常进行采集，判断层级和子集
   for(let i = 0; i < tree.length; i++) {
     const row = tree[i]
+    if(!('children' in row)) {
+      row.children = []
+    }
     // if(row.name === '山西省') {
     //   console.log('山西')
     //   await end()
@@ -384,6 +387,7 @@ async function writeDB_Alone(v, pid = 0) {
   if(LAST_DATA_IDS.length) {
     const data = await knex(TB).where({pid, name: v.name}).select();
     if(data && data.length > 0) {
+      elog(v.name, v.level, `[${data[0].id}]数据库已存在, 跳过`);
       return [[data[0].id], 1]
     }
   }
