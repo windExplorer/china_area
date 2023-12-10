@@ -21,7 +21,7 @@
 - 软件不是很完善，但基本能满足需要。
 - 不想自己采集可以直接使用项目中的数据库文件
   - `data/area.sql` 省市区三级 (2023-12-06 采集)
-  - `data/area_full.sql` 全量数据 (2023-12-07 采集)
+  - `data/area_full.sql` 全量数据 (采集中...)
 - `.sql`导出工具: `navicat`
 - **数据中不包括港澳台地区**
 - 可将问题提交到 issue
@@ -111,6 +111,15 @@
   - 等等
 
 ## 更新日志
+
+### V3.5
+
+- 时间: 2023/12/10 19:50
+- 内容:
+  - 修复5级没有名称的bug, 关联ISSUE: [I8MZFN](https://gitee.com/sshift/china_area/issues/I8MZFN#git-comment-divider)
+  - 重设数据库表格式，新增采集链接字段
+  - 5级数据采集中... 下个版本提交
+  - 重新采集3级数据 `data/area_new.sql`
 
 ### V3.4
 

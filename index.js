@@ -36,7 +36,6 @@ const LEVEL_STR = {
 // 最后的层级
 let LAST_DATA = []
 let LAST_DATA_IDS = []
-let ContinueFlag = false
 
 const URL = `https://www.stats.gov.cn/sj/`;
 
