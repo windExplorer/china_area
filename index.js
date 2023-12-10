@@ -373,13 +373,21 @@ async function ContinueRecursion(tree) {
 
 // 写数据库 后续：怕有重名的数据, 这里使用单条数据写入
 async function writeDB_Alone(v, pid = 0) {
-  if(LAST_DATA_IDS.length && LAST_DATA_IDS.includes(pid)) {
-    // 从数据库查询，有的话就不写入
+  // if(LAST_DATA_IDS.length && LAST_DATA_IDS.includes(pid)) {
+  //   // 从数据库查询，有的话就不写入
+  //   const data = await knex(TB).where({pid, name: v.name}).select();
+  //   if(data.length > 0) {
+  //     return [[data[0].id], 1]
+  //   }
+  // }
+  // 先检查
+  if(LAST_DATA_IDS.length) {
     const data = await knex(TB).where({pid, name: v.name}).select();
-    if(data.length > 0) {
+    if(data && data.length > 0) {
       return [[data[0].id], 1]
     }
   }
+  
   return [
     await knex(TB).insert({
       pid,
