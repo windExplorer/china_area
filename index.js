@@ -298,7 +298,7 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
 // 断点续采 - 这个断点续采只针对同级别，后续再开发不限制级别的续采
 async function ContinueStep() {
   // 从数据库获取所有记录
-  let records = await knex(TB).select();
+  let records = await knex(TB);
   COUNT = records.length
   records = records.map(v => ({...v, href: v.url}))
   // 获取最后一条数据的所有层级数据
@@ -359,11 +359,19 @@ async function ContinueRecursion(tree) {
         }
       }
       // 子集没有数据就采集 - 使用通用采集
-      await step3([row], row.level + 1)
+      if(row.level === 1) {
+        await step2([row])
+      } else {
+        await step3([row], row.level + 1)
+      }
     } else if (row.level < endLevel - 1) {
       // 如果层级小于倒数第二级别，就判断是否有子集，如果没有就采集，如果有就继续递归子集
       if(row.children.length === 0) {
-        await step3([row], row.level + 1)
+        if(row.level === 1) {
+          await step2([row])
+        } else {
+          await step3([row], row.level + 1)
+        }
       } else {
         await ContinueRecursion(row.children)
       }
@@ -385,23 +393,23 @@ async function writeDB_Alone(v, pid = 0) {
   // }
   // 先检查
   if(LAST_DATA_IDS.length) {
-    const data = await knex(TB).where({pid, name: v.name}).select();
-    if(data && data.length > 0) {
+    const data = await knex(TB).where({pid, name: v.name}).first();
+    if(data) {
       elog(v.name, v.level, `[${data[0].id}]数据库已存在, 跳过`);
-      return [[data[0].id], 1]
+      return [data[0].id, 1]
     }
   }
   
-  return [
-    await knex(TB).insert({
-      pid,
-      code: v.code,
-      code2: v?.code2 ?? "",
-      name: v.name,
-      level: v.level,
-      url: v?.href ?? "",
-    }), 0
-  ]
+  const res = await knex(TB).insert({
+    pid,
+    code: v.code,
+    code2: v?.code2 ?? "",
+    name: v.name,
+    level: v.level,
+    url: v?.href ?? "",
+  })
+
+  return [res[0], 0]
 }
 
 // 写数据库 - 用循环单个插入, 返回带id的数组
