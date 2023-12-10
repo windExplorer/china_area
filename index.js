@@ -395,8 +395,8 @@ async function writeDB_Alone(v, pid = 0) {
   if(LAST_DATA_IDS.length) {
     const data = await knex(TB).where({pid, name: v.name}).first();
     if(data) {
-      elog(v.name, v.level, `[${data[0].id}]数据库已存在, 跳过`);
-      return [data[0].id, 1]
+      elog(v.name, v.level, `[${data.id}]数据库已存在, 跳过`);
+      return [data.id, 1]
     }
   }
   
