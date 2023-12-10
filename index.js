@@ -324,7 +324,7 @@ async function ContinueStep() {
   LAST_DATA_IDS = JSON.parse(JSON.stringify(ids))
   // console.log(ids)
   // 将数据转换成树状结构
-  const tree = com.generatTree(records)
+  const tree = com.generatTree2(records)
   // await com.wFile('./tmp/tmp-0.json', JSON.stringify(tree.map((item) => ({...item, children: []}))));
   // 写入缓存文件，测试用
   await com.wFile('./tmp/tmp.json', JSON.stringify(tree));
@@ -377,30 +377,36 @@ async function writeDB_Alone(v, pid = 0) {
     // 从数据库查询，有的话就不写入
     const data = await knex(TB).where({pid, name: v.name}).select();
     if(data.length > 0) {
-      return data[0]
+      return [[data[0].id], 1]
     }
   }
-  return await knex(TB).insert({
-    pid,
-    code: v.code,
-    code2: v?.code2 ?? "",
-    name: v.name,
-    level: v.level,
-    url: v?.href ?? "",
-  });
+  return [
+    await knex(TB).insert({
+      pid,
+      code: v.code,
+      code2: v?.code2 ?? "",
+      name: v.name,
+      level: v.level,
+      url: v?.href ?? "",
+    }), 0
+  ]
 }
 
 // 写数据库 - 用循环单个插入, 返回带id的数组
 async function writeDB(list = [], pid = 0) {
   // 断点续采，如果pid是倒数第二级别的id
+  let jump = 0
   for (let i = 0; i < list.length; i++) {
+    let id = (await writeDB_Alone(list[i], pid))
+    jump += id[1]
     list[i] = {
       ...list[i],
-      id: (await writeDB_Alone(list[i], pid))[0],
+      id: id[0],
     };
   }
   // 此处新增采集数量
   COUNT += list.length;
+  COUNT -= jump
   return list;
 }
 

@@ -10,7 +10,7 @@ module.exports = {
     database: "china_area",
     charset: "utf8mb4",
   },
-  TB: "area", // 表名,json文件,js文件名
+  TB: "area_10", // 表名,json文件,js文件名
   NO_ZX: true, // 有一些 "省直辖县级行政区划" 和 "自治区直辖县级行政区划" 如果是true则跳过该级别直接采集里面的数据
   SHOW_LINK: true, // 是否输出链接地址
   RE_TRY: 20, // 重试次数

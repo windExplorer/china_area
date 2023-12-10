@@ -42,7 +42,7 @@ async function exp() {
         return;
     }
     const sourceList = await knex.select().from(TB);
-    let list = com.generatTree(sourceList);
+    let list = com.generatTree2(sourceList);
     switch (ext) {
         case "js":
             com.wFile(exportFile, `const areaList = ${JSON.stringify(list)}`);
