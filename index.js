@@ -24,7 +24,12 @@ const LEVEL_MAP = {
   5: ".villagetr",
 };
 // 循环检测class
-const LOOP_CHECK_CLASS = [LEVEL_MAP[2], LEVEL_MAP[3], LEVEL_MAP[4], LEVEL_MAP[5]];
+const LOOP_CHECK_CLASS = [
+  LEVEL_MAP[2],
+  LEVEL_MAP[3],
+  LEVEL_MAP[4],
+  LEVEL_MAP[5],
+];
 const LEVEL_STR = {
   1: "省",
   2: "市",
@@ -34,8 +39,8 @@ const LEVEL_STR = {
 };
 
 // 最后的层级
-let LAST_DATA = []
-let LAST_DATA_IDS = []
+let LAST_DATA = [];
+let LAST_DATA_IDS = [];
 
 const URL = `https://www.stats.gov.cn/sj/`;
 
@@ -51,7 +56,7 @@ const URL = `https://www.stats.gov.cn/sj/`;
     // slowMo: 100, // 慢速采集
     // defaultViewport: { width: 960, height: 540 },
   });
-  if(!cdb) {
+  if (!cdb) {
     // 如果数据库存在数据，就增量采集
     await ContinueStep();
   } else {
@@ -111,7 +116,7 @@ const URL = `https://www.stats.gov.cn/sj/`;
       await step2(MENU[i]);
     }
   }
-  
+
   await end();
   return;
 })();
@@ -121,34 +126,33 @@ async function step2(row) {
   const LV = 2;
   // 按省份采集
   const { name, href, id } = row;
-    elog(name, LV, "开始采集", href);
-    let res = await grabCom(href, [LEVEL_MAP[2]]);
-    if (!res) {
-      elog(name, LV, "没采集到数据, 跳过");
-      return
+  elog(name, LV, "开始采集", href);
+  let res = await grabCom(href, [LEVEL_MAP[2]]);
+  if (!res) {
+    elog(name, LV, "没采集到数据, 跳过");
+    return;
+  }
+  res = res.map((v) => ({ ...v, level: LV }));
+  if (conf.NO_ZX) {
+    const arr2 = res.filter((v) => v.name.includes("直辖"));
+    if (arr2.length > 0) {
+      elog(name, LV, "提权【直辖】数据");
+      // 提权 省直辖县级行政区划 内数据, 筛选出 直辖 相关的, 直接采集到数据进行填充
+      const res2 = await step2_2(arr2, 2);
+      elog(name, LV, `提权【直辖】数据完毕, 共${res2.length}条`);
+      res = res.filter((v) => !v.name.includes("直辖"));
+      res = [...res, ...res2];
     }
-    res = res.map((v) => ({ ...v, level: LV }));
-    if (conf.NO_ZX) {
-      const arr2 = res.filter((v) => v.name.includes("直辖"));
-      if (arr2.length > 0) {
-        elog(name, LV, "提权【直辖】数据");
-        // 提权 省直辖县级行政区划 内数据, 筛选出 直辖 相关的, 直接采集到数据进行填充
-        const res2 = await step2_2(arr2, 2);
-        elog(name, LV, `提权【直辖】数据完毕, 共${res2.length}条`);
-        res = res.filter((v) => !v.name.includes("直辖"));
-        res = [...res, ...res2];
-      }
-    }
-    const res2 = await writeDB(res, id);
-    elog(name, LV, `下级数据（${LEVEL_STR[LV]}）写入完毕, 共${res2.length}条`);
-    if (endLevel <= 2) {
-      elog(name, LV, `采集级别设置为2, 不进行后续级别采集`);
-      return
-    }
-    // 如果是采集高于2级, 继续采集后续等级
-    await step3(res2, 3);
-    elog(name, LV, "采集完毕");
-  
+  }
+  const res2 = await writeDB(res, id);
+  elog(name, LV, `下级数据（${LEVEL_STR[LV]}）写入完毕, 共${res2.length}条`);
+  if (endLevel <= 2) {
+    elog(name, LV, `采集级别设置为2, 不进行后续级别采集`);
+    return;
+  }
+  // 如果是采集高于2级, 继续采集后续等级
+  await step3(res2, 3);
+  elog(name, LV, "采集完毕");
 }
 
 // - 从这里开始自适应class - 通用采集 - 返回每次采集的数组
@@ -171,34 +175,42 @@ async function step2_2(list = [], level = 2) {
 
 // 3 - 4 - 5级 递归采集
 async function step3(list = [], level = 3) {
+  let retry = 0;
   for (let i = 0; i < list.length; i++) {
     const v = list[i];
-
-    // com.elog(`## [LV${level}]正在采集 ${v.name}: ${v.href}`);
     elog(v.name, level, `开始采集`, v.href);
     if (!v.href) {
-      // com.elog(`## [LV${level}]采集地址为空, 跳过`);
       elog(v.name, level, `采集地址为空, 跳过`);
       continue;
     }
     let res = await grabCom(v.href);
     if (!res) {
-      // com.elog(`## [LV${level}]没有采集到数据, 跳过`);
-      elog(v.name, level, `没有采集到数据, 跳过`);
+      // 这里添加一下重试，重试3次
+      if (++retry <= conf.RE_TRY_EMPTY) {
+        elog(
+          v.name,
+          level,
+          `没有采集到数据, 进行第[${retry}/${conf.RE_TRY_EMPTY}]重试`
+        );
+        i--;
+      } else {
+        elog(
+          v.name,
+          level,
+          `重试结束, 没有采集到数据, 跳过(tip: 后续可以通过续采进行补充)`
+        );
+      }
       continue;
     }
+    retry = 0;
     res = res.map((v) => ({ ...v, level }));
     const res2 = await writeDB(res, v.id);
-    // com.elog(
-    //   `## [LV${level}]【${v.name}】下${LEVEL_STR[level]}写入数据库完毕, 共${res2.length}条`
-    // );
     elog(
       v.name,
       level,
       `下级数据（${LEVEL_STR[level]}）写入完毕, 共${res2.length}条`
     );
     if (endLevel <= level) {
-      // com.elog(`## 采集级别设置为${level}, 不进行后续级别采集`);
       elog(v.name, level, `采集级别设置为${level}, 不进行后续级别采集`);
       continue;
     }
@@ -232,33 +244,34 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
           eles.forEach((ele) => {
             const as = ele.querySelectorAll("a");
             const tds = ele.querySelectorAll("td");
-            let name = '', code2 = ''
+            let name = "",
+              code2 = "";
             if (as && as.length > 0) {
-              if(as.length === 3) {
+              if (as.length === 3) {
                 code2 = as[1].innerText;
                 name = as[2].innerText;
               } else {
-                name = as[1].innerText
+                name = as[1].innerText;
               }
               arr.push({
                 code: as[0].innerText,
                 href: as[0].href,
                 name,
-                code2
+                code2,
                 // level: 2,
               });
             } else {
-              if(tds.length === 3) {
+              if (tds.length === 3) {
                 code2 = tds[1].innerText;
                 name = tds[2].innerText;
               } else {
-                name = tds[1].innerText
+                name = tds[1].innerText;
               }
               arr.push({
                 code: tds[0].innerText,
                 href: "",
                 name,
-                code2
+                code2,
                 // level: 2,
               });
             }
@@ -299,46 +312,46 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
 async function ContinueStep() {
   // 从数据库获取所有记录
   let records = await knex(TB);
-  COUNT = records.length
-  records = records.map(v => ({...v, href: v.url}))
+  COUNT = records.length;
+  records = records.map((v) => ({ ...v, href: v.url }));
   // 获取最后一条数据的所有层级数据
   let last = records[records.length - 1];
-  let count = 0
-  let arr = [last]
-  let ids = [last.id]
-  while(count < 5) {
-    count ++
+  let count = 0;
+  let arr = [last];
+  let ids = [last.id];
+  while (count < 5) {
+    count++;
     // 找pid
     const row = records.find((item) => item.id === last.pid);
-    if(row) {
-      last = row
-      arr.push(last)
-      ids.push(last.id)
+    if (row) {
+      last = row;
+      arr.push(last);
+      ids.push(last.id);
     } else {
-      break
+      break;
     }
   }
-  arr.reverse()
-  ids.reverse()
-  LAST_DATA = JSON.parse(JSON.stringify(arr))
-  LAST_DATA_IDS = JSON.parse(JSON.stringify(ids))
+  arr.reverse();
+  ids.reverse();
+  LAST_DATA = JSON.parse(JSON.stringify(arr));
+  LAST_DATA_IDS = JSON.parse(JSON.stringify(ids));
   // console.log(ids)
   // 将数据转换成树状结构
-  const tree = com.generatTree2(records)
+  const tree = com.generatTree2(records);
   // await com.wFile('./tmp/tmp-0.json', JSON.stringify(tree.map((item) => ({...item, children: []}))));
   // 写入缓存文件，测试用
-  await com.wFile('./tmp/tmp.json', JSON.stringify(tree));
+  await com.wFile("./tmp/tmp.json", JSON.stringify(tree));
   // 通过递归循环遍历树状结构
-  await ContinueRecursion(tree)
+  await ContinueRecursion(tree);
 }
 
 // 递归断点续采
-async function ContinueRecursion(tree) { 
+async function ContinueRecursion(tree) {
   // 因为是递归，正常进行采集，判断层级和子集
-  for(let i = 0; i < tree.length; i++) {
-    const row = tree[i]
-    if(!('children' in row)) {
-      row.children = []
+  for (let i = 0; i < tree.length; i++) {
+    const row = tree[i];
+    if (!("children" in row)) {
+      row.children = [];
     }
     // if(row.name === '山西省') {
     //   console.log('山西')
@@ -346,38 +359,38 @@ async function ContinueRecursion(tree) {
     //   return
     // }
     // console.log(row.id, row.name, row.level === endLevel -1, row.children.length, LAST_DATA_IDS)
-    await ContinueRecursion(row.children)
-    
+    await ContinueRecursion(row.children);
+
     // 先判断层级
     // 如果是倒数第二级别，只需要判断子集是否有数据，如果有就退出
-    if(row.level === endLevel - 1) {
+    if (row.level === endLevel - 1) {
       // elog(row.name, row.level, '续采中', row.href)
-      if(row.children.length > 0) {
+      if (row.children.length > 0) {
         // 再判断一下id是否在ids里面, 不在就表示采集完成，退出递归
-        if(!LAST_DATA_IDS.includes(row.id)) {
-          continue
+        if (!LAST_DATA_IDS.includes(row.id)) {
+          continue;
         }
       }
       // 子集没有数据就采集 - 使用通用采集
-      if(row.level === 1) {
-        await step2([row])
+      if (row.level === 1) {
+        await step2([row]);
       } else {
-        await step3([row], row.level + 1)
+        await step3([row], row.level + 1);
       }
     } else if (row.level < endLevel - 1) {
       // 如果层级小于倒数第二级别，就判断是否有子集，如果没有就采集，如果有就继续递归子集
-      if(row.children.length === 0) {
-        if(row.level === 1) {
-          await step2([row])
+      if (row.children.length === 0) {
+        if (row.level === 1) {
+          await step2([row]);
         } else {
-          await step3([row], row.level + 1)
+          await step3([row], row.level + 1);
         }
       } else {
-        await ContinueRecursion(row.children)
+        await ContinueRecursion(row.children);
       }
     } else {
       // 如果是最后一级别，直接退出
-      return
+      return;
     }
   }
 }
@@ -392,14 +405,14 @@ async function writeDB_Alone(v, pid = 0) {
   //   }
   // }
   // 先检查
-  if(LAST_DATA_IDS.length) {
-    const data = await knex(TB).where({pid, name: v.name}).first();
-    if(data) {
+  if (LAST_DATA_IDS.length) {
+    const data = await knex(TB).where({ pid, name: v.name }).first();
+    if (data) {
       elog(v.name, v.level, `[${data.id}]数据库已存在, 跳过`);
-      return [data.id, 1]
+      return [data.id, 1];
     }
   }
-  
+
   const res = await knex(TB).insert({
     pid,
     code: v.code,
@@ -407,18 +420,18 @@ async function writeDB_Alone(v, pid = 0) {
     name: v.name,
     level: v.level,
     url: v?.href ?? "",
-  })
+  });
 
-  return [res[0], 0]
+  return [res[0], 0];
 }
 
 // 写数据库 - 用循环单个插入, 返回带id的数组
 async function writeDB(list = [], pid = 0) {
   // 断点续采，如果pid是倒数第二级别的id
-  let jump = 0
+  let jump = 0;
   for (let i = 0; i < list.length; i++) {
-    let id = (await writeDB_Alone(list[i], pid))
-    jump += id[1]
+    let id = await writeDB_Alone(list[i], pid);
+    jump += id[1];
     list[i] = {
       ...list[i],
       id: id[0],
@@ -426,7 +439,7 @@ async function writeDB(list = [], pid = 0) {
   }
   // 此处新增采集数量
   COUNT += list.length;
-  COUNT -= jump
+  COUNT -= jump;
   return list;
 }
 
@@ -490,9 +503,9 @@ async function checkDB() {
     com.elog(`## 表${TB}创建成功`);
   } else {
     // 这里判断表已经存在，获取表中的数据并且接着最后的数据继续采集
-    const count = await knex(TB).count('id as total');
+    const count = await knex(TB).count("id as total");
     // console.log(count[0].total);
-    if (count[0].total > 0) { 
+    if (count[0].total > 0) {
       flag = false;
     }
     com.elog(`## 表${TB}已存在, 检测通过, 继续采集`);
