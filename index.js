@@ -224,6 +224,10 @@ async function step3(list = [], level = 3) {
 
 // 通用采集函数
 async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
+  if (!U) {
+    elog("通用采集", -1, "地址为空, 停止采集");
+    return;
+  }
   let attempts = 0;
   let lastError = null;
   const page = await browser.newPage();
@@ -291,6 +295,7 @@ async function grabCom(U, CLASSES = LOOP_CHECK_CLASS) {
         `页面请求失败, 正在进行第${attempts + 1}重试 错误信息: ${err?.message}`,
         U
       );
+      // console.log(U);
       await new Promise((resolve) =>
         setTimeout(resolve, conf.DELAY_MS * attempts)
       );
@@ -373,7 +378,7 @@ async function ContinueRecursion(tree) {
       }
       // 子集没有数据就采集 - 使用通用采集
       if (row.level === 1) {
-        await step2([row]);
+        await step2(row);
       } else {
         await step3([row], row.level + 1);
       }
@@ -381,7 +386,7 @@ async function ContinueRecursion(tree) {
       // 如果层级小于倒数第二级别，就判断是否有子集，如果没有就采集，如果有就继续递归子集
       if (row.children.length === 0) {
         if (row.level === 1) {
-          await step2([row]);
+          await step2(row);
         } else {
           await step3([row], row.level + 1);
         }
