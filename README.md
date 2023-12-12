@@ -1,5 +1,9 @@
 # 中国统计用区划代码
 
+#### 项目通常更新在[Gitee](https://gitee.com/sshift/china_area)
+
+#### 备份仓库 [GitHub](https://github.com/windExplorer/china_area/)
+
 ## 介绍
 
 全国统计用区划代码和城乡划分代码采集
@@ -121,7 +125,7 @@
 - 时间: 2023/12/12 14:35
 - 内容:
   - 采集保留直辖区域等级的全量数据 `data/area_full_zx.sql`
-  - 采集保留直辖区域等级的省市区数据 `data/area_zx.json`
+  - 采集保留直辖区域等级的省市区数据 `data/area_zx.sql`
 
 ### V3.7
 

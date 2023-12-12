@@ -7,3 +7,4 @@ yarn.lock
 log/*
 package-lock.json
 tmp/*
+/data/*.zip
